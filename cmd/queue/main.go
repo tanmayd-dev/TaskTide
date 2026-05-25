@@ -16,10 +16,10 @@ import (
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Default().Fatalf("Could not load .env\n")
+		log.Panicf("Could not load .env\n")
 	}
 
-	task_queue := []models.TaskDefinition{}
+	taskQueue := []models.TaskDefinition{}
 
 	router := chi.NewRouter()
 
@@ -27,7 +27,7 @@ func main() {
 	router.Use(middleware.Recoverer)
 
 	router.Route(
-		"/", queue.Router(&task_queue),
+		"/", queue.Router(&taskQueue),
 	)
 
 	server := http.Server{

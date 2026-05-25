@@ -2,11 +2,11 @@ package worker
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/tanmayd-dev/TaskTide/internal/api/v1/health"
+	"github.com/tanmayd-dev/TaskTide/internal/api/worker/health"
 )
 
 func Router() func(chi.Router) {
 	return func(router chi.Router) {
-		router.Route("/", health.Health())
+		router.Route("/", health.Router())
 	}
 }

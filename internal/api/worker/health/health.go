@@ -6,12 +6,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func handle_health(w http.ResponseWriter, r *http.Request) {
+func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func Health() func(chi.Router) {
+func Router() func(chi.Router) {
 	return func(router chi.Router) {
-		router.Get("/", handle_health)
+		router.Get("/", handleHealth)
 	}
 }

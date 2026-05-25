@@ -6,10 +6,10 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 )
 
-func Router(task_queue *[]models.TaskDefinition) func(chi.Router) {
+func Router(taskQueue *[]models.TaskDefinition) func(chi.Router) {
 	return func(r chi.Router) {
 		r.Route(
-			"/", queue.Router(task_queue),
+			"/", queue.Router(taskQueue),
 		)
 	}
 }

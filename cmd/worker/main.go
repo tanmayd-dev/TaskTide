@@ -10,16 +10,16 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 	"github.com/tanmayd-dev/TaskTide/internal/api/worker"
-	"github.com/tanmayd-dev/TaskTide/internal/service/worker_service"
+	"github.com/tanmayd-dev/TaskTide/internal/service/workerService"
 )
 
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Default().Fatalf("Could not load .env\n")
+		log.Printf("Could not load .env\n")
 	}
 
-	go worker_service.PollForTask()
+	go workerService.PollForTask()
 
 	router := chi.NewRouter()
 

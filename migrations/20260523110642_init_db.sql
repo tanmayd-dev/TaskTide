@@ -13,3 +13,5 @@ CREATE TABLE task_definition (
     workflow_id UUID REFERENCES workflow_definition(id)
 );
 -- +goose Down
+DROP TABLE task_definition CASCADE;
+DROP TABLE workflow_definition CASCADE;

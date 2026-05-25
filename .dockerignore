@@ -1,0 +1,10 @@
+.git
+bin
+tmp
+vendor
+node_modules
+Dockerfile
+docker-compose.yml
+*.log
+.env
+*.exe

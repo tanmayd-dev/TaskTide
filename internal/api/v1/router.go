@@ -11,6 +11,7 @@ func Router() func(chi.Router) {
 	return func(router chi.Router) {
 		router.Route("/", health.Health())
 		router.Route("/workflow", workflow.Route())
-		router.Route("/report", report.Router())
+		router.Route("/report", report.Router(queries, ctx, minioClient))
+		router.Route("/file", file.Router(queries, ctx, minioClient))
 	}
 }

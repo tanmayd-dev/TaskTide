@@ -8,6 +8,7 @@ import (
 type TaskType string
 type TaskDefinitionID string
 type WorkflowDefinitionID string
+type FileID string
 
 const (
 	TaskNOOP              TaskType = "NOOP"
@@ -29,26 +30,31 @@ var validTaskTypes = map[TaskType]struct{}{
 	TaskCSVFilter:         {},
 }
 
-func (task_type *TaskType) UnmarshalJSON(data []byte) error {
+func (taskType *TaskType) UnmarshalJSON(data []byte) error {
 	var s string
 	err := json.Unmarshal(data, &s)
 	if err != nil {
 		return err
 	}
-	task_type_s := TaskType(s)
-	if _, ok := validTaskTypes[task_type_s]; !ok {
+	taskTypeS := TaskType(s)
+	if _, ok := validTaskTypes[taskTypeS]; !ok {
 		return fmt.Errorf("Invalid task type %v.", s)
 	}
-	*task_type = task_type_s
+	*taskType = taskTypeS
 	return nil
 }
 
 type TaskDefinition struct {
 	ID   TaskDefinitionID `json:"id"`
-	Type TaskType `json:"type"`
+	Type TaskType         `json:"type"`
 }
 
 type WorkflowDefinition struct {
 	ID    WorkflowDefinitionID `json:"id"`
-	Tasks []TaskDefinition `json:"tasks"`
+	Tasks []TaskDefinition     `json:"tasks"`
+}
+
+type File struct {
+	ID      FileID `json:"id"`
+	Name    string `json:"name"`
 }

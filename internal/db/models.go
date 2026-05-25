@@ -8,6 +8,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type InputFile struct {
+	ID       pgtype.UUID
+	FileName pgtype.Text
+}
+
 type TaskDefinition struct {
 	ID         pgtype.UUID
 	TaskType   pgtype.Text

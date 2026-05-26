@@ -20,6 +20,18 @@ type TaskDefinition struct {
 	WorkflowID pgtype.UUID
 }
 
+type TaskExecution struct {
+	ID         int32
+	TaskBase   pgtype.UUID
+	TaskWorker pgtype.Int4
+}
+
+type Worker struct {
+	ID         int32
+	WorkerHost pgtype.Text
+	WorkerPort pgtype.Text
+}
+
 type WorkflowDefinition struct {
 	ID           pgtype.UUID
 	WorkflowName pgtype.Text

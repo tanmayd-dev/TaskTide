@@ -55,6 +55,6 @@ type WorkflowDefinition struct {
 }
 
 type File struct {
-	ID      FileID `json:"id"`
-	Name    string `json:"name"`
+	ID   FileID `json:"id"`
+	Name string `json:"name"`
 }

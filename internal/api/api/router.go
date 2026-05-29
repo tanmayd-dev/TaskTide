@@ -1,14 +1,14 @@
-package v1
+package api
 
 import (
 	"context"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/minio/minio-go/v7"
-	"github.com/tanmayd-dev/TaskTide/internal/api/v1/file"
-	"github.com/tanmayd-dev/TaskTide/internal/api/v1/health"
-	"github.com/tanmayd-dev/TaskTide/internal/api/v1/report"
-	"github.com/tanmayd-dev/TaskTide/internal/api/v1/workflow"
+	"github.com/tanmayd-dev/TaskTide/internal/api/api/file"
+	"github.com/tanmayd-dev/TaskTide/internal/api/api/health"
+	"github.com/tanmayd-dev/TaskTide/internal/api/api/report"
+	"github.com/tanmayd-dev/TaskTide/internal/api/api/workflow"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 )
 

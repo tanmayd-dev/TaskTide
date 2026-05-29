@@ -13,7 +13,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/tanmayd-dev/TaskTide/internal/api/queue"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
-	"github.com/tanmayd-dev/TaskTide/internal/models"
 )
 
 func main() {
@@ -33,9 +32,6 @@ func main() {
 	defer pool.Close()
 	queries := db.New(pool)
 
-	// In memory storage of tasks for now
-	taskQueue := []models.TaskDefinition{}
-
 	// Setup router
 	router := chi.NewRouter()
 
@@ -43,7 +39,7 @@ func main() {
 	router.Use(middleware.Recoverer)
 
 	router.Route(
-		"/", queue.Router(&taskQueue, queries, ctx),
+		"/", queue.Router(queries, ctx),
 	)
 
 	server := http.Server{

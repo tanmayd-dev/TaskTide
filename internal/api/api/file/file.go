@@ -9,14 +9,11 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/google/uuid"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/consts"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
-	"github.com/tanmayd-dev/TaskTide/internal/models"
 )
 
 func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
@@ -92,23 +89,14 @@ func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 
 func getFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var file models.File
+		var file db.InputFile
 		err := json.NewDecoder(r.Body).Decode(&file)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not parse input", http.StatusBadRequest)
 			return
 		}
-		UUID, err := uuid.Parse(string(file.ID))
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse UUID", http.StatusBadRequest)
-			return
-		}
-		filesData, err := queries.GetFile(ctx, pgtype.UUID{
-			Bytes: [16]byte(UUID),
-			Valid: true,
-		})
+		filesData, err := queries.GetFile(ctx, file.ID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not contact Database", http.StatusBadRequest)

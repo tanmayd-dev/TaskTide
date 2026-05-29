@@ -25,3 +25,16 @@ func (q *Queries) CreateWorkflow(ctx context.Context, workflowName pgtype.Text) 
 	err := row.Scan(&i.ID, &i.WorkflowName)
 	return i, err
 }
+
+const getWorkflow = `-- name: GetWorkflow :one
+SELECT id, workflow_name FROM workflow_definition WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) GetWorkflow(ctx context.Context, id pgtype.UUID) (WorkflowDefinition, error) {
+	row := q.db.QueryRow(ctx, getWorkflow, id)
+	var i WorkflowDefinition
+	err := row.Scan(&i.ID, &i.WorkflowName)
+	return i, err
+}

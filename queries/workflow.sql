@@ -4,3 +4,8 @@ INSERT INTO workflow_definition (
 ) VALUES (
     $1
 ) RETURNING *;
+
+-- name: GetWorkflow :one
+SELECT * FROM workflow_definition WHERE (
+    id = $1
+);

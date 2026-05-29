@@ -14,10 +14,11 @@ import (
 const addWorker = `-- name: AddWorker :one
 INSERT INTO worker (
     worker_host,
-    worker_port
+    worker_port,
+    worker_available
 ) VALUES (
-    $1, $2
-) RETURNING id, worker_host, worker_port
+    $1, $2, TRUE
+) RETURNING id, worker_host, worker_port, worker_available
 `
 
 type AddWorkerParams struct {
@@ -28,27 +29,182 @@ type AddWorkerParams struct {
 func (q *Queries) AddWorker(ctx context.Context, arg AddWorkerParams) (Worker, error) {
 	row := q.db.QueryRow(ctx, addWorker, arg.WorkerHost, arg.WorkerPort)
 	var i Worker
-	err := row.Scan(&i.ID, &i.WorkerHost, &i.WorkerPort)
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerHost,
+		&i.WorkerPort,
+		&i.WorkerAvailable,
+	)
 	return i, err
 }
 
 const assignWorkerToTask = `-- name: AssignWorkerToTask :one
-INSERT INTO task_execution (
-    task_base,
-    task_worker
-) VALUES (
-    $1, $2
-) RETURNING id, task_base, task_worker
+UPDATE task_execution
+SET task_assigned = TRUE,
+task_worker = $1
+WHERE id = $2
+RETURNING id, task_base, task_worker, task_assigned, task_completed
 `
 
 type AssignWorkerToTaskParams struct {
+	TaskWorker pgtype.Int4
+	ID         int32
+}
+
+func (q *Queries) AssignWorkerToTask(ctx context.Context, arg AssignWorkerToTaskParams) (TaskExecution, error) {
+	row := q.db.QueryRow(ctx, assignWorkerToTask, arg.TaskWorker, arg.ID)
+	var i TaskExecution
+	err := row.Scan(
+		&i.ID,
+		&i.TaskBase,
+		&i.TaskWorker,
+		&i.TaskAssigned,
+		&i.TaskCompleted,
+	)
+	return i, err
+}
+
+const createTaskExecution = `-- name: CreateTaskExecution :one
+INSERT INTO task_execution (
+    task_base,
+    task_worker,
+    task_assigned,
+    task_completed
+) VALUES (
+    $1, $2, FALSE, FALSE
+) RETURNING id, task_base, task_worker, task_assigned, task_completed
+`
+
+type CreateTaskExecutionParams struct {
 	TaskBase   pgtype.UUID
 	TaskWorker pgtype.Int4
 }
 
-func (q *Queries) AssignWorkerToTask(ctx context.Context, arg AssignWorkerToTaskParams) (TaskExecution, error) {
-	row := q.db.QueryRow(ctx, assignWorkerToTask, arg.TaskBase, arg.TaskWorker)
+func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecutionParams) (TaskExecution, error) {
+	row := q.db.QueryRow(ctx, createTaskExecution, arg.TaskBase, arg.TaskWorker)
 	var i TaskExecution
-	err := row.Scan(&i.ID, &i.TaskBase, &i.TaskWorker)
+	err := row.Scan(
+		&i.ID,
+		&i.TaskBase,
+		&i.TaskWorker,
+		&i.TaskAssigned,
+		&i.TaskCompleted,
+	)
+	return i, err
+}
+
+const getAvailableWorker = `-- name: GetAvailableWorker :one
+SELECT id, worker_host, worker_port, worker_available FROM worker WHERE (
+    worker_available = TRUE
+) LIMIT 1
+`
+
+func (q *Queries) GetAvailableWorker(ctx context.Context) (Worker, error) {
+	row := q.db.QueryRow(ctx, getAvailableWorker)
+	var i Worker
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerHost,
+		&i.WorkerPort,
+		&i.WorkerAvailable,
+	)
+	return i, err
+}
+
+const getTasksExecution = `-- name: GetTasksExecution :many
+SELECT id, task_base, task_worker, task_assigned, task_completed FROM task_execution WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) GetTasksExecution(ctx context.Context, id int32) ([]TaskExecution, error) {
+	rows, err := q.db.Query(ctx, getTasksExecution, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TaskExecution
+	for rows.Next() {
+		var i TaskExecution
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskBase,
+			&i.TaskWorker,
+			&i.TaskAssigned,
+			&i.TaskCompleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUnassignedTasks = `-- name: GetUnassignedTasks :one
+SELECT id, task_base, task_worker, task_assigned, task_completed FROM task_execution WHERE (
+    task_assigned = FALSE AND
+    task_completed = FALSE
+) LIMIT 1
+`
+
+func (q *Queries) GetUnassignedTasks(ctx context.Context) (TaskExecution, error) {
+	row := q.db.QueryRow(ctx, getUnassignedTasks)
+	var i TaskExecution
+	err := row.Scan(
+		&i.ID,
+		&i.TaskBase,
+		&i.TaskWorker,
+		&i.TaskAssigned,
+		&i.TaskCompleted,
+	)
+	return i, err
+}
+
+const markTaskComplete = `-- name: MarkTaskComplete :exec
+UPDATE task_execution SET
+task_completed = TRUE,
+task_assigned = FALSE
+WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) MarkTaskComplete(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, markTaskComplete, id)
+	return err
+}
+
+const markWorkerAvailable = `-- name: MarkWorkerAvailable :exec
+UPDATE worker SET
+worker_available = TRUE
+WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) MarkWorkerAvailable(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, markWorkerAvailable, id)
+	return err
+}
+
+const markWorkerUnavailable = `-- name: MarkWorkerUnavailable :one
+UPDATE worker
+SET worker_available = FALSE
+WHERE id = $1
+RETURNING id, worker_host, worker_port, worker_available
+`
+
+func (q *Queries) MarkWorkerUnavailable(ctx context.Context, id int32) (Worker, error) {
+	row := q.db.QueryRow(ctx, markWorkerUnavailable, id)
+	var i Worker
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerHost,
+		&i.WorkerPort,
+		&i.WorkerAvailable,
+	)
 	return i, err
 }

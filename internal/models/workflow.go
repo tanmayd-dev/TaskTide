@@ -44,17 +44,40 @@ func (taskType *TaskType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type InputFile struct {
+	ID       string
+	FileName string
+}
+
 type TaskDefinition struct {
-	ID   TaskDefinitionID `json:"id"`
-	Type TaskType         `json:"type"`
+	ID         string
+	TaskType   TaskType
+	TaskName   string
+	WorkflowID string
+}
+
+type TaskExecution struct {
+	ID            int
+	TaskBase      string
+	TaskWorker    int
+	TaskAssigned  bool
+	TaskCompleted bool
+}
+
+type Worker struct {
+	ID              int
+	WorkerHost      string
+	WorkerPort      string
+	WorkerAvailable bool
 }
 
 type WorkflowDefinition struct {
-	ID    WorkflowDefinitionID `json:"id"`
-	Tasks []TaskDefinition     `json:"tasks"`
+	ID           string
+	WorkflowName string
 }
 
-type File struct {
-	ID   FileID `json:"id"`
-	Name string `json:"name"`
+type FatWorkflowDefinition struct {
+	ID            string
+	WorflowName   string
+	WorkflowTasks []TaskDefinition
 }

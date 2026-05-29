@@ -21,15 +21,18 @@ type TaskDefinition struct {
 }
 
 type TaskExecution struct {
-	ID         int32
-	TaskBase   pgtype.UUID
-	TaskWorker pgtype.Int4
+	ID            int32
+	TaskBase      pgtype.UUID
+	TaskWorker    pgtype.Int4
+	TaskAssigned  pgtype.Bool
+	TaskCompleted pgtype.Bool
 }
 
 type Worker struct {
-	ID         int32
-	WorkerHost pgtype.Text
-	WorkerPort pgtype.Text
+	ID              int32
+	WorkerHost      pgtype.Text
+	WorkerPort      pgtype.Text
+	WorkerAvailable pgtype.Bool
 }
 
 type WorkflowDefinition struct {

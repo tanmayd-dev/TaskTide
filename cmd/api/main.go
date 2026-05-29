@@ -13,7 +13,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	v1 "github.com/tanmayd-dev/TaskTide/internal/api/v1"
+	"github.com/tanmayd-dev/TaskTide/internal/api/api"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 )
 
@@ -52,7 +52,7 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
-	router.Route("/", v1.Router(queries, ctx, minioClient))
+	router.Route("/", api.Router(queries, ctx, minioClient))
 
 	server := http.Server{
 		Addr:    fmt.Sprintf("%v:%v", os.Getenv("API_HOST"), os.Getenv("API_PORT")),

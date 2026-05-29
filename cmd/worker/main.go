@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
@@ -47,8 +48,16 @@ func main() {
 		},
 	)
 
+	// Listen
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		log.Printf("Could not create listener: %v\n", err.Error())
+		return
+	}
+	address := listener.Addr().(*net.TCPAddr)
+
 	// Register self
-	err = workerService.RegisterSelf()
+	workerID, err := workerService.RegisterSelf(address.Port)
 	if err != nil {
 		log.Fatalf("%v\n", err.Error())
 	}
@@ -59,13 +68,14 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
-	router.Route("/", worker.Router(queries, ctx, minioClient))
+	router.Route("/", worker.Router(queries, ctx, minioClient, workerID))
 
-	// Serve
+	// Server
 	server := http.Server{
 		Addr:    fmt.Sprintf("%v:%v", os.Getenv("WORKER_HOST"), os.Getenv("WORKER_PORT")),
 		Handler: router,
 	}
 
-	log.Fatal(server.ListenAndServe())
+	// Serve
+	log.Fatal(server.Serve(listener))
 }

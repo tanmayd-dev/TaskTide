@@ -38,3 +38,52 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (TaskDef
 	)
 	return i, err
 }
+
+const getTask = `-- name: GetTask :one
+SELECT id, task_type, task_name, workflow_id FROM task_definition WHERE
+id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetTask(ctx context.Context, id pgtype.UUID) (TaskDefinition, error) {
+	row := q.db.QueryRow(ctx, getTask, id)
+	var i TaskDefinition
+	err := row.Scan(
+		&i.ID,
+		&i.TaskType,
+		&i.TaskName,
+		&i.WorkflowID,
+	)
+	return i, err
+}
+
+const getWorkflowTasks = `-- name: GetWorkflowTasks :many
+SELECT id, task_type, task_name, workflow_id FROM task_definition WHERE (
+    workflow_id = $1
+)
+`
+
+func (q *Queries) GetWorkflowTasks(ctx context.Context, workflowID pgtype.UUID) ([]TaskDefinition, error) {
+	rows, err := q.db.Query(ctx, getWorkflowTasks, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TaskDefinition
+	for rows.Next() {
+		var i TaskDefinition
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskType,
+			&i.TaskName,
+			&i.WorkflowID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

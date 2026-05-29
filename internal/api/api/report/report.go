@@ -9,12 +9,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
-	"github.com/tanmayd-dev/TaskTide/internal/models"
 )
 
 func getCompletion(_ *db.Queries, _ context.Context, _ *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var task models.TaskDefinition
+		var task db.TaskDefinition
 		err := json.NewDecoder(r.Body).Decode(&task)
 		if err != nil {
 			log.Printf("Could not decode %v. Got %v\n", r.Body, err)

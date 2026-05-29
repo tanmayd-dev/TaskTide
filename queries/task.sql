@@ -6,3 +6,13 @@ INSERT INTO task_definition (
 ) VALUES (
     $1, $2, $3
 ) RETURNING *;
+
+-- name: GetTask :one
+SELECT * FROM task_definition WHERE
+id = $1
+LIMIT 1;
+
+-- name: GetWorkflowTasks :many
+SELECT * FROM task_definition WHERE (
+    workflow_id = $1
+);

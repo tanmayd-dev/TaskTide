@@ -23,7 +23,7 @@ INSERT INTO task_definition (
 
 type CreateTaskParams struct {
 	TaskName   pgtype.Text
-	TaskType   pgtype.Text
+	TaskType   string
 	WorkflowID pgtype.UUID
 }
 
@@ -35,6 +35,28 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (TaskDef
 		&i.TaskType,
 		&i.TaskName,
 		&i.WorkflowID,
+	)
+	return i, err
+}
+
+const createTaskAttempt = `-- name: CreateTaskAttempt :one
+INSERT INTO task_attempt(
+    task_execution_base,
+    task_completed,
+    task_succeded
+) VALUES (
+    $1, FALSE, FALSE
+) RETURNING id, task_execution_base, task_completed, task_succeded
+`
+
+func (q *Queries) CreateTaskAttempt(ctx context.Context, taskExecutionBase pgtype.UUID) (TaskAttempt, error) {
+	row := q.db.QueryRow(ctx, createTaskAttempt, taskExecutionBase)
+	var i TaskAttempt
+	err := row.Scan(
+		&i.ID,
+		&i.TaskExecutionBase,
+		&i.TaskCompleted,
+		&i.TaskSucceded,
 	)
 	return i, err
 }

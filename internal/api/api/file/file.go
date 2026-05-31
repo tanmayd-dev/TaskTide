@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/consts"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
@@ -50,10 +49,7 @@ func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 
 		minioFile, err := queries.CreateFile(
 			ctx,
-			pgtype.Text{
-				String: header.Filename,
-				Valid:  true,
-			},
+			header.Filename,
 		)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
@@ -107,7 +103,7 @@ func getFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 			return
 		}
 		fileData := filesData[0]
-		MinioID := fmt.Sprintf("%v/%v", file.ID, fileData.FileName.String)
+		MinioID := fmt.Sprintf("%v/%v", file.ID, fileData.FileName)
 		minioFile, err := minioClient.GetObject(
 			ctx,
 			"files",

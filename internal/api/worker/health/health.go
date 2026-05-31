@@ -10,7 +10,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func Router(_ int) func(chi.Router) {
+func Router(_ string) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Get("/", handleHealth)
 	}

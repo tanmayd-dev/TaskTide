@@ -10,7 +10,7 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 )
 
-func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workerID int) func(chi.Router) {
+func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workerID string) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Route("/", health.Router(workerID))
 		router.Route("/task", task.Router(queries, ctx, minioClient, workerID))

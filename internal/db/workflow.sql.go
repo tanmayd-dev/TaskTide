@@ -16,18 +16,23 @@ INSERT INTO workflow_definition (
     workflow_name
 ) VALUES (
     $1
-) RETURNING id, workflow_name
+) RETURNING id, workflow_name, workflow_input, workflow_output
 `
 
 func (q *Queries) CreateWorkflow(ctx context.Context, workflowName pgtype.Text) (WorkflowDefinition, error) {
 	row := q.db.QueryRow(ctx, createWorkflow, workflowName)
 	var i WorkflowDefinition
-	err := row.Scan(&i.ID, &i.WorkflowName)
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowName,
+		&i.WorkflowInput,
+		&i.WorkflowOutput,
+	)
 	return i, err
 }
 
 const getWorkflow = `-- name: GetWorkflow :one
-SELECT id, workflow_name FROM workflow_definition WHERE (
+SELECT id, workflow_name, workflow_input, workflow_output FROM workflow_definition WHERE (
     id = $1
 )
 `
@@ -35,6 +40,11 @@ SELECT id, workflow_name FROM workflow_definition WHERE (
 func (q *Queries) GetWorkflow(ctx context.Context, id pgtype.UUID) (WorkflowDefinition, error) {
 	row := q.db.QueryRow(ctx, getWorkflow, id)
 	var i WorkflowDefinition
-	err := row.Scan(&i.ID, &i.WorkflowName)
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowName,
+		&i.WorkflowInput,
+		&i.WorkflowOutput,
+	)
 	return i, err
 }

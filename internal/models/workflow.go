@@ -57,15 +57,15 @@ type TaskDefinition struct {
 }
 
 type TaskExecution struct {
-	ID            int
+	ID            string
 	TaskBase      string
-	TaskWorker    int
+	TaskWorker    string
 	TaskAssigned  bool
 	TaskCompleted bool
 }
 
 type Worker struct {
-	ID              int
+	ID              string
 	WorkerHost      string
 	WorkerPort      string
 	WorkerAvailable bool

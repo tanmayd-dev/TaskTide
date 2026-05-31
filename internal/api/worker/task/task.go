@@ -13,7 +13,7 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/service/workerService"
 )
 
-func runTask(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workerID int) func(http.ResponseWriter, *http.Request) {
+func runTask(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workerID string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var task models.TaskExecution
 		err := json.NewDecoder(r.Body).Decode(&task)
@@ -26,7 +26,7 @@ func runTask(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 	}
 }
 
-func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workerID int) func(chi.Router) {
+func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workerID string) func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/", runTask(queries, ctx, minioClient, workerID))
 	}

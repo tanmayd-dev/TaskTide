@@ -10,7 +10,6 @@ import (
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 )
@@ -34,27 +33,24 @@ func AssignWorker(queries *db.Queries, ctx context.Context) {
 	}
 	for {
 		assigningTask, err := queries.AssignWorkerToTask(ctx, db.AssignWorkerToTaskParams{
-			TaskWorker: pgtype.Int4{
-				Int32: worker.ID,
-				Valid: true,
-			},
+			TaskWorker: worker.ID,
 			ID: task.ID,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			return
 		}
-		assignedWorker, err := queries.MarkWorkerUnavailable(ctx, int32(worker.ID))
+		assignedWorker, err := queries.MarkWorkerUnavailable(ctx, worker.ID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			return
 		}
 		assigningTaskModel := models.TaskExecution {
-			ID: int(assigningTask.ID),
+			ID: assigningTask.ID.String(),
 			TaskBase: assigningTask.TaskBase.String(),
-			TaskWorker: int(assigningTask.TaskWorker.Int32),
-			TaskAssigned: assigningTask.TaskAssigned.Bool,
-			TaskCompleted: assigningTask.TaskCompleted.Bool,
+			TaskWorker: assigningTask.TaskWorker.String(),
+			TaskAssigned: assigningTask.TaskAssigned,
+			TaskCompleted: assigningTask.TaskCompleted,
 		}
 		assignedTaskJSON, err := json.Marshal(assigningTaskModel)
 		if err != nil {
@@ -62,7 +58,7 @@ func AssignWorker(queries *db.Queries, ctx context.Context) {
 			return
 		}
 		resp, err := http.Post(
-			fmt.Sprintf("http://%v:%v/task", assignedWorker.WorkerHost.String, assignedWorker.WorkerPort.String),
+			fmt.Sprintf("http://%v:%v/task", assignedWorker.WorkerHost, assignedWorker.WorkerPort),
 			"application/json",
 			bytes.NewBuffer(assignedTaskJSON),
 		)

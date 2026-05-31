@@ -22,8 +22,8 @@ INSERT INTO worker (
 `
 
 type AddWorkerParams struct {
-	WorkerHost pgtype.Text
-	WorkerPort pgtype.Text
+	WorkerHost string
+	WorkerPort string
 }
 
 func (q *Queries) AddWorker(ctx context.Context, arg AddWorkerParams) (Worker, error) {
@@ -43,12 +43,12 @@ UPDATE task_execution
 SET task_assigned = TRUE,
 task_worker = $1
 WHERE id = $2
-RETURNING id, task_base, task_worker, task_assigned, task_completed
+RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output
 `
 
 type AssignWorkerToTaskParams struct {
-	TaskWorker pgtype.Int4
-	ID         int32
+	TaskWorker pgtype.UUID
+	ID         pgtype.UUID
 }
 
 func (q *Queries) AssignWorkerToTask(ctx context.Context, arg AssignWorkerToTaskParams) (TaskExecution, error) {
@@ -60,6 +60,8 @@ func (q *Queries) AssignWorkerToTask(ctx context.Context, arg AssignWorkerToTask
 		&i.TaskWorker,
 		&i.TaskAssigned,
 		&i.TaskCompleted,
+		&i.TaskInput,
+		&i.TaskOutput,
 	)
 	return i, err
 }
@@ -72,12 +74,12 @@ INSERT INTO task_execution (
     task_completed
 ) VALUES (
     $1, $2, FALSE, FALSE
-) RETURNING id, task_base, task_worker, task_assigned, task_completed
+) RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output
 `
 
 type CreateTaskExecutionParams struct {
 	TaskBase   pgtype.UUID
-	TaskWorker pgtype.Int4
+	TaskWorker pgtype.UUID
 }
 
 func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecutionParams) (TaskExecution, error) {
@@ -89,6 +91,8 @@ func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecuti
 		&i.TaskWorker,
 		&i.TaskAssigned,
 		&i.TaskCompleted,
+		&i.TaskInput,
+		&i.TaskOutput,
 	)
 	return i, err
 }
@@ -112,12 +116,12 @@ func (q *Queries) GetAvailableWorker(ctx context.Context) (Worker, error) {
 }
 
 const getTasksExecution = `-- name: GetTasksExecution :many
-SELECT id, task_base, task_worker, task_assigned, task_completed FROM task_execution WHERE (
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output FROM task_execution WHERE (
     id = $1
 )
 `
 
-func (q *Queries) GetTasksExecution(ctx context.Context, id int32) ([]TaskExecution, error) {
+func (q *Queries) GetTasksExecution(ctx context.Context, id pgtype.UUID) ([]TaskExecution, error) {
 	rows, err := q.db.Query(ctx, getTasksExecution, id)
 	if err != nil {
 		return nil, err
@@ -132,6 +136,8 @@ func (q *Queries) GetTasksExecution(ctx context.Context, id int32) ([]TaskExecut
 			&i.TaskWorker,
 			&i.TaskAssigned,
 			&i.TaskCompleted,
+			&i.TaskInput,
+			&i.TaskOutput,
 		); err != nil {
 			return nil, err
 		}
@@ -144,7 +150,7 @@ func (q *Queries) GetTasksExecution(ctx context.Context, id int32) ([]TaskExecut
 }
 
 const getUnassignedTasks = `-- name: GetUnassignedTasks :one
-SELECT id, task_base, task_worker, task_assigned, task_completed FROM task_execution WHERE (
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output FROM task_execution WHERE (
     task_assigned = FALSE AND
     task_completed = FALSE
 ) LIMIT 1
@@ -159,6 +165,8 @@ func (q *Queries) GetUnassignedTasks(ctx context.Context) (TaskExecution, error)
 		&i.TaskWorker,
 		&i.TaskAssigned,
 		&i.TaskCompleted,
+		&i.TaskInput,
+		&i.TaskOutput,
 	)
 	return i, err
 }
@@ -172,7 +180,7 @@ WHERE (
 )
 `
 
-func (q *Queries) MarkTaskComplete(ctx context.Context, id int32) error {
+func (q *Queries) MarkTaskComplete(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, markTaskComplete, id)
 	return err
 }
@@ -185,7 +193,7 @@ WHERE (
 )
 `
 
-func (q *Queries) MarkWorkerAvailable(ctx context.Context, id int32) error {
+func (q *Queries) MarkWorkerAvailable(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, markWorkerAvailable, id)
 	return err
 }
@@ -197,7 +205,7 @@ WHERE id = $1
 RETURNING id, worker_host, worker_port, worker_available
 `
 
-func (q *Queries) MarkWorkerUnavailable(ctx context.Context, id int32) (Worker, error) {
+func (q *Queries) MarkWorkerUnavailable(ctx context.Context, id pgtype.UUID) (Worker, error) {
 	row := q.db.QueryRow(ctx, markWorkerUnavailable, id)
 	var i Worker
 	err := row.Scan(

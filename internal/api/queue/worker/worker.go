@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/service/queueService"
@@ -23,14 +22,8 @@ func registerWorker(queries *db.Queries, ctx context.Context) func(http.Response
 			return
 		}
 		addedWorker, err := queries.AddWorker(ctx, db.AddWorkerParams{
-			WorkerHost: pgtype.Text{
-				String: worker.WorkerHost,
-				Valid:  true,
-			},
-			WorkerPort: pgtype.Text{
-				String: worker.WorkerPort,
-				Valid:  true,
-			},
+			WorkerHost: worker.WorkerHost,
+			WorkerPort: worker.WorkerPort,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())
@@ -39,7 +32,7 @@ func registerWorker(queries *db.Queries, ctx context.Context) func(http.Response
 		}
 		go queueService.AssignWorker(queries, ctx)
 		addedWorkerModel := models.Worker {
-			ID: int(addedWorker.ID),
+			ID: addedWorker.ID.String(),
 		}
 		json.NewEncoder(w).Encode(addedWorkerModel)
 	}

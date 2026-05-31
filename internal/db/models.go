@@ -10,32 +10,55 @@ import (
 
 type InputFile struct {
 	ID       pgtype.UUID
-	FileName pgtype.Text
+	FileName string
+}
+
+type TaskAttempt struct {
+	ID                pgtype.UUID
+	TaskExecutionBase pgtype.UUID
+	TaskCompleted     bool
+	TaskSucceded      bool
 }
 
 type TaskDefinition struct {
 	ID         pgtype.UUID
-	TaskType   pgtype.Text
+	TaskType   string
 	TaskName   pgtype.Text
 	WorkflowID pgtype.UUID
 }
 
+type TaskDefinitionDepend struct {
+	ID            pgtype.UUID
+	TaskID        pgtype.UUID
+	TaskDependsOn pgtype.UUID
+}
+
 type TaskExecution struct {
-	ID            int32
+	ID            pgtype.UUID
 	TaskBase      pgtype.UUID
-	TaskWorker    pgtype.Int4
-	TaskAssigned  pgtype.Bool
-	TaskCompleted pgtype.Bool
+	TaskWorker    pgtype.UUID
+	TaskAssigned  bool
+	TaskCompleted bool
+	TaskInput     pgtype.UUID
+	TaskOutput    pgtype.UUID
+}
+
+type TaskExecutionDepend struct {
+	ID            pgtype.UUID
+	TaskID        pgtype.UUID
+	TaskDependsOn pgtype.UUID
 }
 
 type Worker struct {
-	ID              int32
-	WorkerHost      pgtype.Text
-	WorkerPort      pgtype.Text
-	WorkerAvailable pgtype.Bool
+	ID              pgtype.UUID
+	WorkerHost      string
+	WorkerPort      string
+	WorkerAvailable bool
 }
 
 type WorkflowDefinition struct {
-	ID           pgtype.UUID
-	WorkflowName pgtype.Text
+	ID             pgtype.UUID
+	WorkflowName   pgtype.Text
+	WorkflowInput  pgtype.UUID
+	WorkflowOutput pgtype.UUID
 }

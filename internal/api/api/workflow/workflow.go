@@ -59,10 +59,7 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 				String: taskDef.TaskName,
 				Valid:  true,
 			},
-			TaskType: pgtype.Text{
-				String: string(taskDef.TaskType),
-				Valid:  true,
-			},
+			TaskType: string(taskDef.TaskType),
 			WorkflowID: pgtype.UUID{
 				Bytes: workflowUUID,
 				Valid: true,
@@ -119,7 +116,7 @@ func handleGetWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client
 		for _, task := range DBTasks {
 			tasks = append(tasks, models.TaskDefinition{
 				ID:         task.ID.String(),
-				TaskType:   models.TaskType(task.TaskType.String),
+				TaskType:   models.TaskType(task.TaskType),
 				TaskName:   task.TaskName.String,
 				WorkflowID: task.WorkflowID.String(),
 			})

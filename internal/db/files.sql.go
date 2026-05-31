@@ -19,7 +19,7 @@ INSERT INTO input_file (
 ) RETURNING id, file_name
 `
 
-func (q *Queries) CreateFile(ctx context.Context, fileName pgtype.Text) (InputFile, error) {
+func (q *Queries) CreateFile(ctx context.Context, fileName string) (InputFile, error) {
 	row := q.db.QueryRow(ctx, createFile, fileName)
 	var i InputFile
 	err := row.Scan(&i.ID, &i.FileName)

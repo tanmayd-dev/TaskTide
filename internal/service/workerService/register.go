@@ -11,7 +11,7 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 )
 
-func RegisterSelf(port int) (int, error) {
+func RegisterSelf(port int) (string, error) {
 	worker := models.Worker{
 		WorkerHost: "localhost",
 		WorkerPort: fmt.Sprintf("%v", port),
@@ -24,11 +24,11 @@ func RegisterSelf(port int) (int, error) {
 	)
 	if err != nil {
 		log.Printf("Registeration erred: %v\n", err.Error())
-		return 0, err
+		return "", err
 	}
 	if registration.StatusCode != 200 {
 		log.Printf("Registeration failed: %v\n", registration.StatusCode)
-		return 0, err
+		return "", err
 	}
 	log.Printf("Added self, got %#v", registration)
 	var registeredWorker models.Worker

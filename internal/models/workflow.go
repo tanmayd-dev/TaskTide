@@ -9,6 +9,9 @@ type TaskType string
 type TaskDefinitionID string
 type WorkflowDefinitionID string
 type FileID string
+type WorkerID string
+type InputFileID string
+type TaskExecutionID string
 
 const (
 	TaskNOOP              TaskType = "NOOP"
@@ -45,39 +48,44 @@ func (taskType *TaskType) UnmarshalJSON(data []byte) error {
 }
 
 type InputFile struct {
-	ID       string
+	ID       InputFileID `json:"id,omitempty"`
 	FileName string
 }
 
 type TaskDefinition struct {
-	ID         string
+	ID         TaskDefinitionID `json:"id,omitempty"`
 	TaskType   TaskType
 	TaskName   string
-	WorkflowID string
+	WorkflowID WorkflowDefinitionID `json:"workflow_id,omitempty"`
 }
 
 type TaskExecution struct {
-	ID            string
-	TaskBase      string
-	TaskWorker    string
+	ID            TaskExecutionID  `json:"id,omitempty"`
+	TaskBase      TaskDefinitionID `json:"task_base,omitempty"`
+	TaskWorker    WorkerID         `json:"task_worker,omitempty"`
 	TaskAssigned  bool
 	TaskCompleted bool
 }
 
 type Worker struct {
-	ID              string
+	ID              WorkerID `json:"id,omitempty"`
 	WorkerHost      string
 	WorkerPort      string
 	WorkerAvailable bool
 }
 
 type WorkflowDefinition struct {
-	ID           string
+	ID           WorkflowDefinitionID `json:"id,omitempty"`
 	WorkflowName string
 }
 
 type FatWorkflowDefinition struct {
-	ID            string
+	ID            WorkflowDefinitionID `json:"id,omitempty"`
 	WorflowName   string
 	WorkflowTasks []TaskDefinition
+}
+
+type FileDependency struct {
+	ID           TaskDefinitionID   `json:"id,omitempty"`
+	Dependencies []TaskDefinitionID `json:"dependencies,omitempty"`
 }

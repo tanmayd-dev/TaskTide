@@ -3,7 +3,6 @@ package file
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/consts"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
+	"github.com/tanmayd-dev/TaskTide/internal/repositories"
 )
 
 func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
@@ -31,54 +31,13 @@ func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 		}
 		defer file.Close()
 
-		exists, err := minioClient.BucketExists(ctx, "files")
+		minioFile, err := repositories.UploadFile(queries, ctx, minioClient, "files", header.Header.Get("ContentType"), file, header.Filename, header.Size)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not verify bucket existance", http.StatusBadRequest)
+			http.Error(w, "Could not create file", http.StatusBadRequest)
 			return
 		}
 
-		if !exists {
-			err = minioClient.MakeBucket(ctx, "files", minio.MakeBucketOptions{})
-			if err != nil {
-				log.Printf("%v\n", err.Error())
-				http.Error(w, "Could not create bucket", http.StatusBadRequest)
-				return
-			}
-		}
-
-		minioFile, err := queries.CreateFile(
-			ctx,
-			header.Filename,
-		)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not write to database", http.StatusBadRequest)
-			return
-		}
-
-		_, err = minioClient.PutObject(
-			ctx,
-			"files",
-			fmt.Sprintf("%v/%v", minioFile.ID, header.Filename),
-			file,
-			header.Size,
-			minio.PutObjectOptions{
-				ContentType: header.Header.Get("ContentType"),
-			},
-		)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not write to object store", http.StatusBadRequest)
-
-			err := queries.DeleteFile(ctx, minioFile.ID)
-			if err != nil {
-				log.Printf("%v\n", err.Error())
-				http.Error(w, "We wrote you object but lost track of it. It is so over", http.StatusInternalServerError)
-			}
-
-			return
-		}
 		json.NewEncoder(w).Encode(minioFile)
 	}
 }
@@ -92,36 +51,13 @@ func getFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 			http.Error(w, "Could not parse input", http.StatusBadRequest)
 			return
 		}
-		filesData, err := queries.GetFile(ctx, file.ID)
+		minioFile, info, err := repositories.GetFile(ctx, queries, file, minioClient, "files")
 		if err != nil {
 			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not contact Database", http.StatusBadRequest)
-			return
-		}
-		if len(filesData) == 0 {
-			http.Error(w, "Could not get file from DB", http.StatusBadRequest)
-			return
-		}
-		fileData := filesData[0]
-		MinioID := fmt.Sprintf("%v/%v", file.ID, fileData.FileName)
-		minioFile, err := minioClient.GetObject(
-			ctx,
-			"files",
-			MinioID,
-			minio.GetObjectOptions{},
-		)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, fmt.Sprintf("Could not get file %v", MinioID), http.StatusBadRequest)
+			http.Error(w, "Could not get file", http.StatusBadRequest)
 			return
 		}
 		defer minioFile.Close()
-
-		info, err := minioFile.Stat()
-		if err != nil {
-			http.Error(w, err.Error(), 404)
-			return
-		}
 
 		w.Header().Set(
 			"Content-Type",

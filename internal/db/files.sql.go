@@ -37,28 +37,15 @@ func (q *Queries) DeleteFile(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
-const getFile = `-- name: GetFile :many
+const getFile = `-- name: GetFile :one
 SELECT id, file_name FROM input_file WHERE (
     id = $1
 )
 `
 
-func (q *Queries) GetFile(ctx context.Context, id pgtype.UUID) ([]InputFile, error) {
-	rows, err := q.db.Query(ctx, getFile, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []InputFile
-	for rows.Next() {
-		var i InputFile
-		if err := rows.Scan(&i.ID, &i.FileName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) GetFile(ctx context.Context, id pgtype.UUID) (InputFile, error) {
+	row := q.db.QueryRow(ctx, getFile, id)
+	var i InputFile
+	err := row.Scan(&i.ID, &i.FileName)
+	return i, err
 }

@@ -10,7 +10,7 @@ DELETE FROM input_file WHERE (
     id = $1
 );
 
--- name: GetFile :many
+-- name: GetFile :one
 SELECT * FROM input_file WHERE (
     id = $1
 );

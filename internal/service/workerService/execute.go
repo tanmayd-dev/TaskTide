@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
@@ -16,29 +15,14 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/tasks"
 )
 
-func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task models.TaskExecution, workerID string) {
-	taskBaseUUID, err := uuid.ParseBytes([]byte(task.TaskBase))
-	if err != nil {
-		log.Printf("%v\n", err.Error())
-		return
-	}
-	taskUUID, err := uuid.ParseBytes([]byte(task.ID))
-	if err != nil {
-		log.Printf("%v\n", err.Error())
-		return
-	}
-	workerUUID, err := uuid.ParseBytes([]byte(workerID))
-	if err != nil {
-		log.Printf("%v\n", err.Error())
-		return
-	}
+func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task models.TaskExecution, workerUUID models.WorkerID) {
 	queries.CreateTaskAttempt(ctx, pgtype.UUID{
-		Bytes: taskUUID,
-		Valid: true,
+		Bytes: task.ID.Bytes,
+		Valid: task.ID.Valid,
 	})
 	taskBase, err := queries.GetTask(ctx, pgtype.UUID{
-		Bytes: taskBaseUUID,
-		Valid: true,
+		Bytes: task.TaskBase.Bytes,
+		Valid: task.TaskBase.Valid,
 	})
 	var taskError error
 	switch models.TaskType(taskBase.TaskType) {
@@ -48,16 +32,16 @@ func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task mod
 		log.Printf("Not implemented for %v\n", taskBase.TaskType)
 	}
 	err = queries.MarkTaskComplete(ctx, pgtype.UUID{
-		Bytes: taskUUID,
-		Valid: true,
+		Bytes: task.ID.Bytes,
+		Valid: task.ID.Valid,
 	})
 	if err != nil {
 		log.Printf("Could not Free Task:%v\n", err.Error())
 		return
 	}
 	err = queries.MarkWorkerAvailable(ctx, pgtype.UUID{
-		Bytes: workerUUID,
-		Valid: true,
+		Bytes: workerUUID.Bytes,
+		Valid: workerUUID.Valid,
 	})
 	if err != nil {
 		log.Printf("Could not Free Task:%v\n", err.Error())
@@ -65,13 +49,13 @@ func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task mod
 	}
 	if taskError != nil {
 		queries.FailTask(ctx, pgtype.UUID{
-			Bytes: taskUUID,
-			Valid: true,
+			Bytes: task.ID.Bytes,
+			Valid: task.ID.Valid,
 		})
 	} else {
 		queries.SucceedTask(ctx, pgtype.UUID{
-			Bytes: taskUUID,
-			Valid: true,
+			Bytes: task.ID.Bytes,
+			Valid: task.ID.Valid,
 		})
 	}
 	_, err = http.Post(

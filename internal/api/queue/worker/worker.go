@@ -32,7 +32,10 @@ func registerWorker(queries *db.Queries, ctx context.Context) func(http.Response
 		}
 		go queueService.AssignWorker(queries, ctx)
 		addedWorkerModel := models.Worker {
-			ID: addedWorker.ID.String(),
+			ID: models.WorkerID{
+				Bytes: addedWorker.ID.Bytes,
+				Valid: addedWorker.ID.Valid,
+			},
 		}
 		json.NewEncoder(w).Encode(addedWorkerModel)
 	}

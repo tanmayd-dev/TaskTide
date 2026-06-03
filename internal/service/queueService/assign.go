@@ -46,9 +46,9 @@ func AssignWorker(queries *db.Queries, ctx context.Context) {
 			return
 		}
 		assigningTaskModel := models.TaskExecution {
-			ID: assigningTask.ID.String(),
-			TaskBase: assigningTask.TaskBase.String(),
-			TaskWorker: assigningTask.TaskWorker.String(),
+			ID: models.TaskExecutionID(assigningTask.ID.String()),
+			TaskBase: models.TaskDefinitionID(assigningTask.TaskBase.String()),
+			TaskWorker: models.WorkerID(assigningTask.TaskWorker.String()),
 			TaskAssigned: assigningTask.TaskAssigned,
 			TaskCompleted: assigningTask.TaskCompleted,
 		}

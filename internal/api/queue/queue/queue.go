@@ -23,7 +23,7 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 			http.Error(w, "Could not parse task", http.StatusBadRequest)
 			return
 		}
-		taskUUID, err := uuid.Parse(task.ID)
+		taskUUID, err := uuid.Parse(string(task.ID))
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not parse ID", http.StatusBadRequest)

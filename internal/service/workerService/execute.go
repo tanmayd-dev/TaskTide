@@ -16,7 +16,7 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/tasks"
 )
 
-func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task models.TaskExecution, workerID string) {
+func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task models.TaskExecution, workerID models.WorkerID) {
 	taskBaseUUID, err := uuid.ParseBytes([]byte(task.TaskBase))
 	if err != nil {
 		log.Printf("%v\n", err.Error())

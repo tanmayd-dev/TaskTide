@@ -7,11 +7,10 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/service/queueService"
+	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
 func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter, *http.Request) {
@@ -23,17 +22,14 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 			http.Error(w, "Could not parse task", http.StatusBadRequest)
 			return
 		}
-		taskUUID, err := uuid.Parse(string(task.ID))
+		taskUUID, err := utils.StringToUUID(string(task.ID))
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not parse ID", http.StatusBadRequest)
 			return
 		}
 		_, err = queries.CreateTaskExecution(ctx, db.CreateTaskExecutionParams{
-			TaskBase: pgtype.UUID{
-				Bytes: taskUUID,
-				Valid: true,
-			},
+			TaskBase: taskUUID,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())

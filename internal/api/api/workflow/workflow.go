@@ -10,11 +10,12 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
+	"github.com/tanmayd-dev/TaskTide/internal/repositories"
+	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
 func handleCreateWorflow(queries *db.Queries, ctx context.Context, _ *minio.Client) func(http.ResponseWriter, *http.Request) {
@@ -48,7 +49,7 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 			http.Error(w, "Could not parse workflow", http.StatusBadRequest)
 			return
 		}
-		workflowUUID, err := uuid.ParseBytes([]byte(taskDef.WorkflowID))
+		workflowUUID, err := utils.StringToUUID(string(taskDef.WorkflowID))
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not parse workflow id", http.StatusBadRequest)
@@ -59,11 +60,8 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 				String: taskDef.TaskName,
 				Valid:  true,
 			},
-			TaskType: string(taskDef.TaskType),
-			WorkflowID: pgtype.UUID{
-				Bytes: workflowUUID,
-				Valid: true,
-			},
+			TaskType:   string(taskDef.TaskType),
+			WorkflowID: workflowUUID,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())
@@ -88,25 +86,19 @@ func handleGetWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client
 			http.Error(w, "Could not parse workflow", http.StatusBadRequest)
 			return
 		}
-		workflowUUID, err := uuid.ParseBytes([]byte(requestWorkflow.ID))
+		workflowUUID, err := utils.StringToUUID(string(requestWorkflow.ID))
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not parse workflow id", http.StatusBadRequest)
 			return
 		}
-		workflow, err := queries.GetWorkflow(ctx, pgtype.UUID{
-			Bytes: workflowUUID,
-			Valid: true,
-		})
+		workflow, err := queries.GetWorkflow(ctx, workflowUUID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not parse ID", http.StatusBadRequest)
 			return
 		}
-		DBTasks, err := queries.GetWorkflowTasks(ctx, pgtype.UUID{
-			Bytes: workflowUUID,
-			Valid: true,
-		})
+		DBTasks, err := queries.GetWorkflowTasks(ctx, workflowUUID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not get tasks", http.StatusBadRequest)
@@ -115,14 +107,14 @@ func handleGetWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client
 		var tasks []models.TaskDefinition
 		for _, task := range DBTasks {
 			tasks = append(tasks, models.TaskDefinition{
-				ID:         task.ID.String(),
+				ID:         models.TaskDefinitionID(task.ID.String()),
 				TaskType:   models.TaskType(task.TaskType),
 				TaskName:   task.TaskName.String,
-				WorkflowID: task.WorkflowID.String(),
+				WorkflowID: models.WorkflowDefinitionID(task.WorkflowID.String()),
 			})
 		}
 		fatWorkflow := models.FatWorkflowDefinition{
-			ID:            workflow.ID.String(),
+			ID:            models.WorkflowDefinitionID(workflow.ID.String()),
 			WorflowName:   workflow.WorkflowName.String,
 			WorkflowTasks: tasks,
 		}
@@ -149,16 +141,13 @@ func handleStart(queries *db.Queries, ctx context.Context, _ *minio.Client) func
 			return
 		}
 		log.Printf("%#v\n", workflowDef)
-		workflowUUID, err := uuid.ParseBytes([]byte(workflowDef.ID))
+		workflowUUID, err := utils.StringToUUID(string(workflowDef.ID))
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not parse workflow id", http.StatusBadRequest)
 			return
 		}
-		tasks, err := queries.GetWorkflowTasks(ctx, pgtype.UUID{
-			Bytes: workflowUUID,
-			Valid: true,
-		})
+		tasks, err := queries.GetWorkflowTasks(ctx, workflowUUID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not get tasks for workflow", http.StatusBadRequest)

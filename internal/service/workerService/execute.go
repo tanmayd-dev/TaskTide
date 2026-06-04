@@ -8,38 +8,31 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/tasks"
+	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
 func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task models.TaskExecution, workerID models.WorkerID) {
-	taskBaseUUID, err := uuid.ParseBytes([]byte(task.TaskBase))
+	taskBaseUUID, err := utils.StringToUUID(string(task.TaskBase))
 	if err != nil {
 		log.Printf("%v\n", err.Error())
 		return
 	}
-	taskUUID, err := uuid.ParseBytes([]byte(task.ID))
+	taskUUID, err := utils.StringToUUID(string(task.ID))
 	if err != nil {
 		log.Printf("%v\n", err.Error())
 		return
 	}
-	workerUUID, err := uuid.ParseBytes([]byte(workerID))
+	workerUUID, err := utils.StringToUUID(string(workerID))
 	if err != nil {
 		log.Printf("%v\n", err.Error())
 		return
 	}
-	queries.CreateTaskAttempt(ctx, pgtype.UUID{
-		Bytes: taskUUID,
-		Valid: true,
-	})
-	taskBase, err := queries.GetTask(ctx, pgtype.UUID{
-		Bytes: taskBaseUUID,
-		Valid: true,
-	})
+	queries.CreateTaskAttempt(ctx, taskUUID)
+	taskBase, err := queries.GetTask(ctx, taskBaseUUID)
 	var taskError error
 	switch models.TaskType(taskBase.TaskType) {
 	case models.TaskNOOP:
@@ -47,32 +40,20 @@ func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task mod
 	default:
 		log.Printf("Not implemented for %v\n", taskBase.TaskType)
 	}
-	err = queries.MarkTaskComplete(ctx, pgtype.UUID{
-		Bytes: taskUUID,
-		Valid: true,
-	})
+	err = queries.MarkTaskComplete(ctx, taskUUID)
 	if err != nil {
 		log.Printf("Could not Free Task:%v\n", err.Error())
 		return
 	}
-	err = queries.MarkWorkerAvailable(ctx, pgtype.UUID{
-		Bytes: workerUUID,
-		Valid: true,
-	})
+	err = queries.MarkWorkerAvailable(ctx, workerUUID)
 	if err != nil {
 		log.Printf("Could not Free Task:%v\n", err.Error())
 		return
 	}
 	if taskError != nil {
-		queries.FailTask(ctx, pgtype.UUID{
-			Bytes: taskUUID,
-			Valid: true,
-		})
+		queries.FailTask(ctx, taskUUID)
 	} else {
-		queries.SucceedTask(ctx, pgtype.UUID{
-			Bytes: taskUUID,
-			Valid: true,
-		})
+		queries.SucceedTask(ctx, taskUUID)
 	}
 	_, err = http.Post(
 		fmt.Sprintf("http://%v:%v/worker/completion", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT")),

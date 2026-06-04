@@ -11,7 +11,7 @@ CREATE TABLE worker (
 CREATE TABLE task_execution (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     task_base UUID REFERENCES task_definition(id) NOT NULL,
-    task_worker UUID REFERENCES worker(id) NOT NULL,
+    task_worker UUID REFERENCES worker(id),
     task_assigned BOOL NOT NULL,
     task_completed BOOL NOT NULL,
     task_input UUID REFERENCES input_file(id),

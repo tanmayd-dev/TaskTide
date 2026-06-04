@@ -15,7 +15,7 @@ func InputFileModel(inputFileDB db.InputFile) models.InputFile {
 func TaskDefinitionModel(taskDefinitionDB db.TaskDefinition) models.TaskDefinition {
 	return models.TaskDefinition{
 		ID: models.TaskDefinitionID(taskDefinitionDB.ID.String()),
-		TaskType: models.TaskType(taskDefinitionDB.TaskName.String),
+		TaskType: models.TaskType(taskDefinitionDB.TaskType),
 		TaskName: taskDefinitionDB.TaskName.String,
 		WorkflowID: models.WorkflowDefinitionID(taskDefinitionDB.WorkflowID.String()),
 	}

@@ -34,7 +34,7 @@ func AssignWorker(queries *db.Queries, ctx context.Context) {
 	for {
 		assigningTask, err := queries.AssignWorkerToTask(ctx, db.AssignWorkerToTaskParams{
 			TaskWorker: worker.ID,
-			ID: task.ID,
+			ID:         task.ID,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())
@@ -45,11 +45,11 @@ func AssignWorker(queries *db.Queries, ctx context.Context) {
 			log.Printf("%v\n", err.Error())
 			return
 		}
-		assigningTaskModel := models.TaskExecution {
-			ID: models.TaskExecutionID(assigningTask.ID.String()),
-			TaskBase: models.TaskDefinitionID(assigningTask.TaskBase.String()),
-			TaskWorker: models.WorkerID(assigningTask.TaskWorker.String()),
-			TaskAssigned: assigningTask.TaskAssigned,
+		assigningTaskModel := models.TaskExecution{
+			ID:            models.TaskExecutionID(assigningTask.ID.String()),
+			TaskBase:      models.TaskDefinitionID(assigningTask.TaskBase.String()),
+			TaskWorker:    models.WorkerID(assigningTask.TaskWorker.String()),
+			TaskAssigned:  assigningTask.TaskAssigned,
 			TaskCompleted: assigningTask.TaskCompleted,
 		}
 		assignedTaskJSON, err := json.Marshal(assigningTaskModel)

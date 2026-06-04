@@ -31,14 +31,14 @@ func registerWorker(queries *db.Queries, ctx context.Context) func(http.Response
 			return
 		}
 		go queueService.AssignWorker(queries, ctx)
-		addedWorkerModel := models.Worker {
+		addedWorkerModel := models.Worker{
 			ID: models.WorkerID(addedWorker.ID.String()),
 		}
 		json.NewEncoder(w).Encode(addedWorkerModel)
 	}
 }
 
-func handleCompletion(queries *db.Queries, ctx context.Context) func( http.ResponseWriter,  *http.Request) {
+func handleCompletion(queries *db.Queries, ctx context.Context) func(http.ResponseWriter, *http.Request) {
 	return func(_ http.ResponseWriter, _ *http.Request) {
 		go queueService.AssignWorker(queries, ctx)
 	}

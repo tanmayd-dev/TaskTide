@@ -11,7 +11,7 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 )
 
-func ensureBucketExists(ctx context.Context, minioClient *minio.Client, bucketName string) (error) {
+func ensureBucketExists(ctx context.Context, minioClient *minio.Client, bucketName string) error {
 	exists, err := minioClient.BucketExists(ctx, bucketName)
 	if err != nil {
 		log.Printf("%v\n", err.Error())

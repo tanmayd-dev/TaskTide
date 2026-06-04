@@ -15,15 +15,6 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-// url := fmt.Sprintf("http://%v:%v/", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT"))
-// resp, err := http.Post(
-// 	url,
-// 	"application/json",
-// 	bytes.NewBuffer(jsonTask),
-// )
-// respString, err := json.Marshal(resp.Body)
-// resps = append(resps, string(respString))
-
 func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, workflowID models.WorkflowDefinitionID) error {
 	workflowUUID, err := utils.StringToUUID(string(workflowID))
 	if err != nil {
@@ -42,21 +33,23 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 		if err != nil {
 			return err
 		}
+		taskModel := models.TaskDefinitionID(taskDB.ID.String())
 		for _, dependencyTaskDB := range dependencyTaskDBs {
-			taskModel := models.TaskDefinitionID(taskDB.ID.String())
-			dependencyModel := models.TaskDefinitionID(dependencyTaskDB.ID.String())
+			dependencyModel := models.TaskDefinitionID(dependencyTaskDB.TaskDependsOn.String())
 			dependencies[taskModel][dependencyModel] = struct{}{}
 			dependants[dependencyModel] = append(dependants[dependencyModel], taskModel)
 		}
-		taskIDToModel[models.TaskDefinitionID(taskDB.ID.String())] = utils.TaskDefinitionModel(taskDB)
+		taskIDToModel[taskModel] = utils.TaskDefinitionModel(taskDB)
 	}
 	got := true
 	for got {
 		got = false
 		for taskID, deps := range dependencies {
-			if len(deps) == 0 {
-				got = true
+			if len(deps) > 0 {
+				continue
 			}
+			got = true
+			delete(dependencies, taskID)
 			for _, dependant := range dependants[taskID] {
 				delete(dependencies[dependant], taskID)
 			}

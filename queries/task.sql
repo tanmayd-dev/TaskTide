@@ -25,3 +25,15 @@ INSERT INTO task_attempt(
 ) VALUES (
     $1, FALSE, FALSE
 ) RETURNING *;
+
+-- name: AddTaskDependency :one
+INSERT INTO task_definition_depends (
+    task_id,
+    task_depends_on
+) VALUES (
+    $1, $2
+) RETURNING *;
+
+-- name: GetTaskDependencies :many
+SELECT * FROM task_definition_depends
+WHERE task_id = $1;

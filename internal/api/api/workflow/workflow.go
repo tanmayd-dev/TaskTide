@@ -1,13 +1,11 @@
 package workflow
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -15,6 +13,7 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/repositories"
+	apiservice "github.com/tanmayd-dev/TaskTide/internal/service/apiService"
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
@@ -77,6 +76,19 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 	}
 }
 
+func addTaskDependency(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request models.FileDependency
+		err := json.NewDecoder(r.Body).Decode(&request)
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			http.Error(w, "Could not parse request", http.StatusBadRequest)
+			return
+		}
+		err = repositories.AddTaskDependency(queries, ctx, minioClient, request.ID, request.Dependencies)
+	}
+}
+
 func handleGetWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var requestWorkflow models.WorkflowDefinition
@@ -127,7 +139,7 @@ func handleGetWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client
 	}
 }
 
-func handleStart(queries *db.Queries, ctx context.Context, _ *minio.Client) func(http.ResponseWriter, *http.Request) {
+func handleStart(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var workflowDef models.WorkflowDefinition
 		err := json.NewDecoder(r.Body).Decode(&workflowDef)
@@ -140,52 +152,7 @@ func handleStart(queries *db.Queries, ctx context.Context, _ *minio.Client) func
 			http.Error(w, fmt.Sprintf("Could not parse Task. Format is: %s", jsonTask), http.StatusBadRequest)
 			return
 		}
-		log.Printf("%#v\n", workflowDef)
-		workflowUUID, err := utils.StringToUUID(string(workflowDef.ID))
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse workflow id", http.StatusBadRequest)
-			return
-		}
-		tasks, err := queries.GetWorkflowTasks(ctx, workflowUUID)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not get tasks for workflow", http.StatusBadRequest)
-			return
-		}
-		var resps []string
-		for _, task := range tasks {
-			jsonTask, err := json.Marshal(task)
-			if err != nil {
-				http.Error(w, "Could not parse Task.", http.StatusBadRequest)
-				return
-			}
-			log.Printf("sending: %#v\n", task)
-			url := fmt.Sprintf("http://%v:%v/", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT"))
-			resp, err := http.Post(
-				url,
-				"application/json",
-				bytes.NewBuffer(jsonTask),
-			)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("Could not request Task from %v. Got %v", url, err), http.StatusInternalServerError)
-				return
-			}
-			respString, err := json.Marshal(resp.Body)
-			if err != nil {
-				log.Printf("%v\n", err.Error())
-				http.Error(w, "Could not parse form", http.StatusBadRequest)
-				return
-			}
-			resps = append(resps, string(respString))
-		}
-		respsJSON, err := json.Marshal(resps)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not create response", http.StatusBadRequest)
-			return
-		}
-		fmt.Fprintf(w, "%#v", respsJSON)
+		go apiservice.StartWorkflow(queries, ctx, minioClient, workflowDef.ID)
 	}
 }
 
@@ -195,5 +162,6 @@ func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client)
 		router.Post("/", handleStart(queries, ctx, minioClient))
 		router.Post("/create", handleCreateWorflow(queries, ctx, minioClient))
 		router.Post("/add", handleAddTask(queries, ctx, minioClient))
+		router.Post("/dependency", addTaskDependency(queries, ctx, minioClient))
 	}
 }

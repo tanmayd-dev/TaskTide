@@ -11,6 +11,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addTaskDependency = `-- name: AddTaskDependency :one
+INSERT INTO task_definition_depends (
+    task_id,
+    task_depends_on
+) VALUES (
+    $1, $2
+) RETURNING id, task_id, task_depends_on
+`
+
+type AddTaskDependencyParams struct {
+	TaskID        pgtype.UUID
+	TaskDependsOn pgtype.UUID
+}
+
+func (q *Queries) AddTaskDependency(ctx context.Context, arg AddTaskDependencyParams) (TaskDefinitionDepend, error) {
+	row := q.db.QueryRow(ctx, addTaskDependency, arg.TaskID, arg.TaskDependsOn)
+	var i TaskDefinitionDepend
+	err := row.Scan(&i.ID, &i.TaskID, &i.TaskDependsOn)
+	return i, err
+}
+
 const createTask = `-- name: CreateTask :one
 INSERT INTO task_definition (
     task_name,
@@ -77,6 +98,31 @@ func (q *Queries) GetTask(ctx context.Context, id pgtype.UUID) (TaskDefinition, 
 		&i.WorkflowID,
 	)
 	return i, err
+}
+
+const getTaskDependencies = `-- name: GetTaskDependencies :many
+SELECT id, task_id, task_depends_on FROM task_definition_depends
+WHERE task_id = $1
+`
+
+func (q *Queries) GetTaskDependencies(ctx context.Context, taskID pgtype.UUID) ([]TaskDefinitionDepend, error) {
+	rows, err := q.db.Query(ctx, getTaskDependencies, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TaskDefinitionDepend
+	for rows.Next() {
+		var i TaskDefinitionDepend
+		if err := rows.Scan(&i.ID, &i.TaskID, &i.TaskDependsOn); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkflowTasks = `-- name: GetWorkflowTasks :many

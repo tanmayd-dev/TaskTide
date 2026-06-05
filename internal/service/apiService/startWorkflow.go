@@ -66,7 +66,7 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 				"application/json",
 				bytes.NewBuffer(jsonTask),
 			)
-			if err != nil || (200 <= resp.StatusCode && resp.StatusCode <= 300) {
+			if (err != nil) || (!(200 <= resp.StatusCode && resp.StatusCode <= 300)) {
 				return err
 			}
 		}

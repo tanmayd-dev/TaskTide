@@ -1,8 +1,16 @@
 package tasks
 
-import "time"
+import (
+	"os"
+	"strconv"
+	"time"
+)
 
 func Noop() error {
-	time.Sleep(time.Second * 10)
+	seconds, err := strconv.Atoi(os.Getenv("NOOP_TIME"))
+	if err != nil {
+		return err
+	}
+	time.Sleep(time.Second * time.Duration(seconds))
 	return nil
 }

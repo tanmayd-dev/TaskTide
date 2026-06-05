@@ -13,7 +13,7 @@ func StringToUUID(s string) (pgtype.UUID, error) {
 		return pgtype.UUID{
 			Bytes: uuid.Nil,
 			Valid: false,
-		}, fmt.Errorf("Could not parse as UUID: %v", s)
+		}, fmt.Errorf("could not parse as UUID: %v", s)
 	}
 	return pgtype.UUID{
 		Bytes: UUID,

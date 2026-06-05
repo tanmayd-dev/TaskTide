@@ -45,6 +45,9 @@ func main() {
 			),
 		},
 	)
+	if err != nil {
+		log.Fatalf("Could not create minioClient: %#v", err)
+	}
 
 	// Create server
 	router := chi.NewRouter()

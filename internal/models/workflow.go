@@ -16,7 +16,7 @@ type TaskExecutionID string
 const (
 	TaskNOOP              TaskType = "NOOP"
 	TaskDocRead           TaskType = "doc.read"
-	TaskDocCheckSensetive TaskType = "doc.check_sensetive"
+	TaskDocCheckSensitive TaskType = "doc.check_sensitive"
 	TaskCSVRead           TaskType = "csv.read"
 	TaskCSVValidate       TaskType = "csv.validate"
 	TaskCSVAggregate      TaskType = "csv.aggregate"
@@ -26,7 +26,7 @@ const (
 var validTaskTypes = map[TaskType]struct{}{
 	TaskNOOP:              {},
 	TaskDocRead:           {},
-	TaskDocCheckSensetive: {},
+	TaskDocCheckSensitive: {},
 	TaskCSVRead:           {},
 	TaskCSVValidate:       {},
 	TaskCSVAggregate:      {},
@@ -41,7 +41,7 @@ func (taskType *TaskType) UnmarshalJSON(data []byte) error {
 	}
 	taskTypeS := TaskType(s)
 	if _, ok := validTaskTypes[taskTypeS]; !ok {
-		return fmt.Errorf("Invalid task type %v.", s)
+		return fmt.Errorf("invalid task type %v", s)
 	}
 	*taskType = taskTypeS
 	return nil
@@ -81,7 +81,7 @@ type WorkflowDefinition struct {
 
 type FatWorkflowDefinition struct {
 	ID            WorkflowDefinitionID `json:"id,omitempty"`
-	WorflowName   string               `json:"workflow_name"`
+	WorkflowName   string               `json:"workflow_name"`
 	WorkflowTasks []TaskDefinition     `json:"workflow_tasks"`
 }
 

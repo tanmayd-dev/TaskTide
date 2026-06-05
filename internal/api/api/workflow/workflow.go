@@ -17,7 +17,7 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func handleCreateWorflow(queries *db.Queries, ctx context.Context, _ *minio.Client) func(http.ResponseWriter, *http.Request) {
+func handleCreateWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var workflowDef models.WorkflowDefinition
 		err := json.NewDecoder(r.Body).Decode(&workflowDef)
@@ -86,6 +86,11 @@ func addTaskDependency(queries *db.Queries, ctx context.Context, minioClient *mi
 			return
 		}
 		err = repositories.AddTaskDependency(queries, ctx, minioClient, request.ID, request.Dependencies)
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			http.Error(w, "Could not Add task dependency", http.StatusBadRequest)
+			return
+		}
 	}
 }
 
@@ -127,7 +132,7 @@ func handleGetWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client
 		}
 		fatWorkflow := models.FatWorkflowDefinition{
 			ID:            models.WorkflowDefinitionID(workflow.ID.String()),
-			WorflowName:   workflow.WorkflowName.String,
+			WorkflowName:   workflow.WorkflowName.String,
 			WorkflowTasks: tasks,
 		}
 		err = json.NewEncoder(w).Encode(fatWorkflow)
@@ -160,7 +165,7 @@ func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client)
 	return func(router chi.Router) {
 		router.Get("/", handleGetWorkflow(queries, ctx, minioClient))
 		router.Post("/", handleStart(queries, ctx, minioClient))
-		router.Post("/create", handleCreateWorflow(queries, ctx, minioClient))
+		router.Post("/create", handleCreateWorkflow(queries, ctx, minioClient))
 		router.Post("/add", handleAddTask(queries, ctx, minioClient))
 		router.Post("/dependency", addTaskDependency(queries, ctx, minioClient))
 	}

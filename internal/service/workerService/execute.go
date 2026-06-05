@@ -33,6 +33,10 @@ func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task mod
 	}
 	queries.CreateTaskAttempt(ctx, taskUUID)
 	taskBase, err := queries.GetTask(ctx, taskBaseUUID)
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		return
+	}
 	var taskError error
 	switch models.TaskType(taskBase.TaskType) {
 	case models.TaskNOOP:

@@ -47,6 +47,9 @@ func main() {
 			),
 		},
 	)
+	if err != nil {
+		log.Fatalf("Could not create minioClient: %#v", err)
+	}
 
 	// Listen
 	listener, err := net.Listen("tcp", ":0")

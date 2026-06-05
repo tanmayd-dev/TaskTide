@@ -15,14 +15,14 @@ func ensureBucketExists(ctx context.Context, minioClient *minio.Client, bucketNa
 	exists, err := minioClient.BucketExists(ctx, bucketName)
 	if err != nil {
 		log.Printf("%v\n", err.Error())
-		return errors.New("Could not check if bucket exists")
+		return errors.New("could not check if bucket exists")
 	}
 
 	if !exists {
 		err = minioClient.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
 		if err != nil {
 			log.Printf("%v\n", err.Error())
-			return errors.New("Could not create bucket")
+			return errors.New("could not create bucket")
 		}
 	}
 	return nil
@@ -40,7 +40,7 @@ func UploadFile(queries *db.Queries, ctx context.Context, minioClient *minio.Cli
 	)
 	if err != nil {
 		log.Printf("%v\n", err.Error())
-		return db.InputFile{}, errors.New("Could not create file in database")
+		return db.InputFile{}, errors.New("could not create file in database")
 	}
 
 	_, err = minioClient.PutObject(
@@ -59,7 +59,7 @@ func UploadFile(queries *db.Queries, ctx context.Context, minioClient *minio.Cli
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 		}
-		return db.InputFile{}, errors.New("Could not add file to bucket")
+		return db.InputFile{}, errors.New("could not add file to bucket")
 	}
 	return minioFile, nil
 }
@@ -72,7 +72,7 @@ func GetFile(ctx context.Context, queries *db.Queries, file db.InputFile, minioC
 	fileData, err := queries.GetFile(ctx, file.ID)
 	if err != nil {
 		log.Printf("%#v\n", err)
-		return nil, minio.ObjectInfo{}, errors.New("Could not get fileData from db")
+		return nil, minio.ObjectInfo{}, errors.New("could not get fileData from db")
 	}
 	MinioID := fmt.Sprintf("%v/%v", file.ID, fileData.FileName)
 	minioFile, err := minioClient.GetObject(
@@ -83,13 +83,13 @@ func GetFile(ctx context.Context, queries *db.Queries, file db.InputFile, minioC
 	)
 	if err != nil {
 		log.Printf("%#v\n", err)
-		return nil, minio.ObjectInfo{}, errors.New("Could not get object")
+		return nil, minio.ObjectInfo{}, errors.New("could not get object")
 	}
 
 	info, err := minioFile.Stat()
 	if err != nil {
 		log.Printf("%#v", err)
-		return nil, minio.ObjectInfo{}, errors.New("Could not stat")
+		return nil, minio.ObjectInfo{}, errors.New("could not stat")
 	}
 	return minioFile, info, nil
 }

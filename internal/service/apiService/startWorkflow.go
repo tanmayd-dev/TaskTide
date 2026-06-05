@@ -25,7 +25,7 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 		return err
 	}
 	dependencies := make(map[models.TaskDefinitionID]map[models.TaskDefinitionID]struct{})
-	dependants := make(map[models.TaskDefinitionID][]models.TaskDefinitionID)
+	dependents := make(map[models.TaskDefinitionID][]models.TaskDefinitionID)
 	taskIDToModel := make(map[models.TaskDefinitionID]models.TaskDefinition)
 	for _, taskDB := range taskDBs {
 		dependencies[models.TaskDefinitionID(taskDB.ID.String())] = make(map[models.TaskDefinitionID]struct{})
@@ -37,7 +37,7 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 		for _, dependencyTaskDB := range dependencyTaskDBs {
 			dependencyModel := models.TaskDefinitionID(dependencyTaskDB.TaskDependsOn.String())
 			dependencies[taskModel][dependencyModel] = struct{}{}
-			dependants[dependencyModel] = append(dependants[dependencyModel], taskModel)
+			dependents[dependencyModel] = append(dependents[dependencyModel], taskModel)
 		}
 		taskIDToModel[taskModel] = utils.TaskDefinitionModel(taskDB)
 	}
@@ -50,10 +50,10 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 			}
 			got = true
 			delete(dependencies, taskID)
-			for _, dependant := range dependants[taskID] {
+			for _, dependant := range dependents[taskID] {
 				delete(dependencies[dependant], taskID)
 			}
-			delete(dependants, taskID)
+			delete(dependents, taskID)
 			task := taskIDToModel[taskID]
 			jsonTask, err := json.Marshal(task)
 			if err != nil {

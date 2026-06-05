@@ -60,3 +60,19 @@ worker_available = TRUE
 WHERE (
     id = $1
 );
+
+-- name: MarkTaskAttemptSuccess :exec
+UPDATE task_attempt SET
+task_completed = TRUE,
+task_succeeded = TRUE
+WHERE (
+    id = $1
+);
+
+-- name: MarkTaskAttemptFailure :exec
+UPDATE task_attempt SET
+task_completed = TRUE,
+task_succeeded = FALSE
+WHERE (
+    id = $1
+);

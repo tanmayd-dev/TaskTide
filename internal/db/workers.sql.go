@@ -171,6 +171,34 @@ func (q *Queries) GetUnassignedTasks(ctx context.Context) (TaskExecution, error)
 	return i, err
 }
 
+const markTaskAttemptFailure = `-- name: MarkTaskAttemptFailure :exec
+UPDATE task_attempt SET
+task_completed = TRUE,
+task_succeeded = FALSE
+WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) MarkTaskAttemptFailure(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markTaskAttemptFailure, id)
+	return err
+}
+
+const markTaskAttemptSuccess = `-- name: MarkTaskAttemptSuccess :exec
+UPDATE task_attempt SET
+task_completed = TRUE,
+task_succeeded = TRUE
+WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) MarkTaskAttemptSuccess(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markTaskAttemptSuccess, id)
+	return err
+}
+
 const markTaskComplete = `-- name: MarkTaskComplete :exec
 UPDATE task_execution SET
 task_completed = TRUE,

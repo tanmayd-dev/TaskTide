@@ -78,7 +78,7 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 
 func addTaskDependency(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var request models.FileDependency
+		var request models.TaskDependency
 		err := json.NewDecoder(r.Body).Decode(&request)
 		if err != nil {
 			log.Printf("%v\n", err.Error())

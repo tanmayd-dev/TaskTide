@@ -85,7 +85,7 @@ type FatWorkflowDefinition struct {
 	WorkflowTasks []TaskDefinition     `json:"workflow_tasks"`
 }
 
-type FileDependency struct {
+type TaskDependency struct {
 	ID           TaskDefinitionID   `json:"id,omitempty"`
 	Dependencies []TaskDefinitionID `json:"dependencies,omitempty"`
 }

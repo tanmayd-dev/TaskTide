@@ -15,7 +15,7 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task models.TaskExecution, workerID models.WorkerID) {
+func Execute(queries *db.Queries, ctx context.Context, minioClient *minio.Client, task models.TaskExecution, workerID models.WorkerID) {
 	taskBaseUUID, err := utils.StringToUUID(string(task.TaskBase))
 	if err != nil {
 		log.Printf("%v\n", err.Error())
@@ -26,15 +26,27 @@ func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task mod
 		log.Printf("%v\n", err.Error())
 		return
 	}
+	inputUUID, err := utils.StringToUUID(string(task.TaskInput))
+	if err != nil {
+		log.Printf("No input: %v\n", err.Error())
+		inputUUID.Valid = false
+	}
 	workerUUID, err := utils.StringToUUID(string(workerID))
 	if err != nil {
 		log.Printf("%v\n", err.Error())
 		return
 	}
-	taskAttempt, err := queries.CreateTaskAttempt(ctx, taskUUID)
+	taskAttempt, err := queries.CreateTaskAttempt(ctx, db.CreateTaskAttemptParams{
+		TaskExecutionBase: taskUUID,
+		TaskInput:         inputUUID,
+	})
 	if err != nil {
 		log.Printf("%v\n", err.Error())
 		return
+	}
+	taskAttemptModel := utils.TaskAttemptModel(taskAttempt)
+	if !inputUUID.Valid {
+		taskAttemptModel.ID = ""
 	}
 	taskBase, err := queries.GetTask(ctx, taskBaseUUID)
 	if err != nil {
@@ -44,7 +56,7 @@ func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task mod
 	var taskError error
 	switch models.TaskType(taskBase.TaskType) {
 	case models.TaskNOOP:
-		taskError = tasks.Noop()
+		taskError = tasks.Noop(queries, ctx, minioClient, taskAttemptModel)
 	default:
 		log.Printf("Not implemented for %v\n", taskBase.TaskType)
 	}

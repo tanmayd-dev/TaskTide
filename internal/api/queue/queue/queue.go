@@ -28,8 +28,13 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 			http.Error(w, "Could not parse ID", http.StatusBadRequest)
 			return
 		}
+		taskInputUUID, err := utils.StringToUUID(string(task.TaskInput))
+		if err != nil {
+			log.Printf("No task input: %v\n", err.Error())
+		}
 		_, err = queries.CreateTaskExecution(ctx, db.CreateTaskExecutionParams{
 			TaskBase: taskUUID,
+			TaskInput: taskInputUUID,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())

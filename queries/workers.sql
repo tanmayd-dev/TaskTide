@@ -12,9 +12,10 @@ INSERT INTO task_execution (
     task_base,
     task_worker,
     task_assigned,
-    task_completed
+    task_completed,
+    task_input
 ) VALUES (
-    $1, $2, FALSE, FALSE
+    $1, $2, FALSE, FALSE, $3
 ) RETURNING *;
 
 -- name: MarkWorkerUnavailable :one

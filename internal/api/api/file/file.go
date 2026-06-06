@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -59,7 +60,7 @@ func getFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 			http.Error(w, "could not create DB var", http.StatusBadRequest)
 			return
 		}
-		minioFile, info, err := repositories.GetFile(ctx, queries, fileDB, minioClient, "files")
+		minioFile, info, err := repositories.GetFile(ctx, queries, fileDB, minioClient, os.Getenv("FILES_BUCKET_NAME"))
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "could not get file", http.StatusBadRequest)

@@ -46,3 +46,13 @@ func WorkflowDefinitionModel(workflowDefinitionDB db.WorkflowDefinition) models.
 		WorkflowName: workflowDefinitionDB.WorkflowName.String,
 	}
 }
+
+func TaskAttemptModel(taskAttemptDB db.TaskAttempt) models.TaskAttempt {
+	return models.TaskAttempt{
+		ID:                models.TaskAttemptID(taskAttemptDB.ID.String()),
+		TaskExecutionBase: models.TaskExecutionID(taskAttemptDB.TaskExecutionBase.String()),
+		TaskCompleted:     taskAttemptDB.TaskCompleted,
+		TaskSucceeded:     taskAttemptDB.TaskSucceeded,
+		TaskInput:         models.InputFileID(taskAttemptDB.TaskInput.String()),
+	}
+}

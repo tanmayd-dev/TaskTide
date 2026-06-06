@@ -17,7 +17,8 @@ type TaskAttempt struct {
 	ID                pgtype.UUID
 	TaskExecutionBase pgtype.UUID
 	TaskCompleted     bool
-	TaskSucceded      bool
+	TaskSucceeded     bool
+	TaskInput         pgtype.UUID
 }
 
 type TaskDefinition struct {

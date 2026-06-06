@@ -61,9 +61,9 @@ func Execute(queries *db.Queries, ctx context.Context, _ *minio.Client, task mod
 	if taskError != nil {
 		queries.FailTask(ctx, taskUUID)
 		queries.MarkTaskAttemptFailure(ctx, taskAttempt.ID)
-		} else {
-			queries.SucceedTask(ctx, taskUUID)
-			queries.MarkTaskAttemptSuccess(ctx, taskAttempt.ID)
+	} else {
+		queries.SucceedTask(ctx, taskUUID)
+		queries.MarkTaskAttemptSuccess(ctx, taskAttempt.ID)
 	}
 	_, err = http.Post(
 		fmt.Sprintf("http://%v:%v/worker/completion", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT")),

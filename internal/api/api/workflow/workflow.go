@@ -132,7 +132,7 @@ func handleGetWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client
 		}
 		fatWorkflow := models.FatWorkflowDefinition{
 			ID:            models.WorkflowDefinitionID(workflow.ID.String()),
-			WorkflowName:   workflow.WorkflowName.String,
+			WorkflowName:  workflow.WorkflowName.String,
 			WorkflowTasks: tasks,
 		}
 		err = json.NewEncoder(w).Encode(fatWorkflow)

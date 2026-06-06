@@ -8,7 +8,6 @@ import (
 type TaskType string
 type TaskDefinitionID string
 type WorkflowDefinitionID string
-type FileID string
 type WorkerID string
 type InputFileID string
 type TaskExecutionID string
@@ -48,8 +47,9 @@ func (taskType *TaskType) UnmarshalJSON(data []byte) error {
 }
 
 type InputFile struct {
-	ID       InputFileID `json:"id,omitempty"`
-	FileName string
+	ID         InputFileID          `json:"id,omitempty"`
+	FileName   string               `json:"file_name,omitempty"`
+	WorkflowID WorkflowDefinitionID `json:"workflow_id,omitempty"`
 }
 
 type TaskDefinition struct {
@@ -81,7 +81,7 @@ type WorkflowDefinition struct {
 
 type FatWorkflowDefinition struct {
 	ID            WorkflowDefinitionID `json:"id,omitempty"`
-	WorkflowName   string               `json:"workflow_name"`
+	WorkflowName  string               `json:"workflow_name"`
 	WorkflowTasks []TaskDefinition     `json:"workflow_tasks"`
 }
 

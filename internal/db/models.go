@@ -21,10 +21,13 @@ type TaskAttempt struct {
 }
 
 type TaskDefinition struct {
-	ID         pgtype.UUID
-	TaskType   string
-	TaskName   pgtype.Text
-	WorkflowID pgtype.UUID
+	ID            pgtype.UUID
+	TaskType      string
+	TaskName      pgtype.Text
+	WorkflowID    pgtype.UUID
+	TaskInputFile pgtype.UUID
+	TaskInputTask pgtype.UUID
+	TaskOutput    pgtype.UUID
 }
 
 type TaskDefinitionDepend struct {

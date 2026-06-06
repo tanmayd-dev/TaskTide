@@ -9,6 +9,8 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
+	"github.com/tanmayd-dev/TaskTide/internal/models"
+	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
 func ensureBucketExists(ctx context.Context, minioClient *minio.Client, bucketName string) error {
@@ -92,4 +94,26 @@ func GetFile(ctx context.Context, queries *db.Queries, file db.InputFile, minioC
 		return nil, minio.ObjectInfo{}, errors.New("could not stat")
 	}
 	return minioFile, info, nil
+}
+
+func AttachFile(queries *db.Queries, ctx context.Context, _ *minio.Client, fileID models.InputFileID, workflowID models.WorkflowDefinitionID) error {
+	fileUUID, err := utils.StringToUUID(string(fileID))
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		return err
+	}
+	workflowUUID, err := utils.StringToUUID(string(workflowID))
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		return err
+	}
+	_, err = queries.AddFileToWorkflow(ctx, db.AddFileToWorkflowParams{
+		WorkflowInput: fileUUID,
+		ID:            workflowUUID,
+	})
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		return err
+	}
+	return nil
 }

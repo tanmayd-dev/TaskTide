@@ -11,6 +11,7 @@ type WorkflowDefinitionID string
 type WorkerID string
 type InputFileID string
 type TaskExecutionID string
+type TaskAttemptID string
 
 const (
 	TaskNOOP              TaskType = "NOOP"
@@ -54,38 +55,48 @@ type InputFile struct {
 
 type TaskDefinition struct {
 	ID         TaskDefinitionID     `json:"id,omitempty"`
-	TaskType   TaskType             `json:"task_type"`
-	TaskName   string               `json:"task_name"`
+	TaskType   TaskType             `json:"task_type,omitempty"`
+	TaskName   string               `json:"task_name,omitempty"`
 	WorkflowID WorkflowDefinitionID `json:"workflow_id,omitempty"`
+	TaskInput  InputFileID          `json:"task_input,omitempty"`
 }
 
 type TaskExecution struct {
 	ID            TaskExecutionID  `json:"id,omitempty"`
 	TaskBase      TaskDefinitionID `json:"task_base,omitempty"`
 	TaskWorker    WorkerID         `json:"task_worker,omitempty"`
-	TaskAssigned  bool             `json:"task_assigned"`
-	TaskCompleted bool             `json:"task_completed"`
+	TaskAssigned  bool             `json:"task_assigned,omitempty"`
+	TaskCompleted bool             `json:"task_completed,omitempty"`
+	TaskInput     InputFileID      `json:"task_input,omitempty"`
 }
 
 type Worker struct {
 	ID              WorkerID `json:"id,omitempty"`
-	WorkerHost      string   `json:"worker_host"`
-	WorkerPort      string   `json:"worker_port"`
-	WorkerAvailable bool     `json:"worker_available"`
+	WorkerHost      string   `json:"worker_host,omitempty"`
+	WorkerPort      string   `json:"worker_port,omitempty"`
+	WorkerAvailable bool     `json:"worker_available,omitempty"`
 }
 
 type WorkflowDefinition struct {
 	ID           WorkflowDefinitionID `json:"id,omitempty"`
-	WorkflowName string               `json:"workflow_name"`
+	WorkflowName string               `json:"workflow_name,omitempty"`
 }
 
 type FatWorkflowDefinition struct {
 	ID            WorkflowDefinitionID `json:"id,omitempty"`
-	WorkflowName  string               `json:"workflow_name"`
-	WorkflowTasks []TaskDefinition     `json:"workflow_tasks"`
+	WorkflowName  string               `json:"workflow_name,omitempty"`
+	WorkflowTasks []TaskDefinition     `json:"workflow_tasks,omitempty"`
 }
 
 type TaskDependency struct {
 	ID           TaskDefinitionID   `json:"id,omitempty"`
 	Dependencies []TaskDefinitionID `json:"dependencies,omitempty"`
+}
+
+type TaskAttempt struct {
+	ID                TaskAttemptID
+	TaskExecutionBase TaskExecutionID
+	TaskCompleted     bool
+	TaskSucceeded     bool
+	TaskInput         InputFileID
 }

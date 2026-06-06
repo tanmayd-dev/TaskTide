@@ -71,19 +71,21 @@ INSERT INTO task_execution (
     task_base,
     task_worker,
     task_assigned,
-    task_completed
+    task_completed,
+    task_input
 ) VALUES (
-    $1, $2, FALSE, FALSE
+    $1, $2, FALSE, FALSE, $3
 ) RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output
 `
 
 type CreateTaskExecutionParams struct {
 	TaskBase   pgtype.UUID
 	TaskWorker pgtype.UUID
+	TaskInput  pgtype.UUID
 }
 
 func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecutionParams) (TaskExecution, error) {
-	row := q.db.QueryRow(ctx, createTaskExecution, arg.TaskBase, arg.TaskWorker)
+	row := q.db.QueryRow(ctx, createTaskExecution, arg.TaskBase, arg.TaskWorker, arg.TaskInput)
 	var i TaskExecution
 	err := row.Scan(
 		&i.ID,

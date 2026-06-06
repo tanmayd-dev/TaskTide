@@ -51,6 +51,7 @@ func AssignWorker(queries *db.Queries, ctx context.Context) {
 			TaskWorker:    models.WorkerID(assigningTask.TaskWorker.String()),
 			TaskAssigned:  assigningTask.TaskAssigned,
 			TaskCompleted: assigningTask.TaskCompleted,
+			TaskInput:     models.InputFileID(assigningTask.TaskInput.String()),
 		}
 		assignedTaskJSON, err := json.Marshal(assigningTaskModel)
 		if err != nil {

@@ -9,6 +9,7 @@
         "ossp",
         "pgtype",
         "pgxpool",
-        "tanmayd"
+        "tanmayd",
+        "uuid"
     ]
 }

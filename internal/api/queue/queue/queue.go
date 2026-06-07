@@ -32,9 +32,18 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 		if err != nil {
 			log.Printf("No task input: %v\n", err.Error())
 		}
+		workflowUUID, err := utils.StringToUUID(string(task.WorkflowID))
+		if err != nil {
+			log.Printf("No task input: %v\n", err.Error())
+		}
+		workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
+		if err != nil {
+			log.Printf("No task input: %v\n", err.Error())
+		}
 		_, err = queries.CreateTaskExecution(ctx, db.CreateTaskExecutionParams{
 			TaskBase: taskUUID,
 			TaskInput: taskInputUUID,
+			WorkflowID: workflowExecution.ID,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())

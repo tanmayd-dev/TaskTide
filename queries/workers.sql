@@ -7,15 +7,23 @@ INSERT INTO worker (
     $1, $2, TRUE
 ) RETURNING *;
 
+-- name: CreateWorkflowExecution :one
+INSERT INTO workflow_execution (
+    workflow_base
+) VALUES (
+    $1
+) RETURNING *;
+
 -- name: CreateTaskExecution :one
 INSERT INTO task_execution (
     task_base,
     task_worker,
     task_assigned,
     task_completed,
-    task_input
+    task_input,
+    workflow_id
 ) VALUES (
-    $1, $2, FALSE, FALSE, $3
+    $1, $2, FALSE, FALSE, $3, $4
 ) RETURNING *;
 
 -- name: MarkWorkerUnavailable :one
@@ -37,9 +45,13 @@ SELECT * FROM worker WHERE (
 ) LIMIT 1;
 
 -- name: GetUnassignedTasks :one
-SELECT * FROM task_execution WHERE (
-    task_assigned = FALSE AND
-    task_completed = FALSE
+SELECT * FROM task_execution A
+INNER JOIN task_definition_depends ON task_definition_depends.id = A.task_base
+INNER JOIN task_execution B ON A.workflow_id = B.workflow_id AND B.task_base = task_definition_depends.task_depends_on
+WHERE (
+    A.task_assigned = FALSE AND
+    A.task_completed = FALSE AND
+    B.task_completed = TRUE
 ) LIMIT 1;
 
 -- name: GetTasksExecution :many

@@ -11,6 +11,7 @@ type WorkflowDefinitionID string
 type WorkerID string
 type InputFileID string
 type TaskExecutionID string
+type WorkflowExecutionID string
 type TaskAttemptID string
 
 const (
@@ -62,12 +63,13 @@ type TaskDefinition struct {
 }
 
 type TaskExecution struct {
-	ID            TaskExecutionID  `json:"id,omitempty"`
-	TaskBase      TaskDefinitionID `json:"task_base,omitempty"`
-	TaskWorker    WorkerID         `json:"task_worker,omitempty"`
-	TaskAssigned  bool             `json:"task_assigned,omitempty"`
-	TaskCompleted bool             `json:"task_completed,omitempty"`
-	TaskInput     InputFileID      `json:"task_input,omitempty"`
+	ID            TaskExecutionID     `json:"id,omitempty"`
+	TaskBase      TaskDefinitionID    `json:"task_base,omitempty"`
+	TaskWorker    WorkerID            `json:"task_worker,omitempty"`
+	TaskAssigned  bool                `json:"task_assigned,omitempty"`
+	TaskCompleted bool                `json:"task_completed,omitempty"`
+	TaskInput     InputFileID         `json:"task_input,omitempty"`
+	WorkflowID    WorkflowExecutionID `json:"workflow_id,omitempty"`
 }
 
 type Worker struct {
@@ -80,6 +82,11 @@ type Worker struct {
 type WorkflowDefinition struct {
 	ID           WorkflowDefinitionID `json:"id,omitempty"`
 	WorkflowName string               `json:"workflow_name,omitempty"`
+}
+
+type WorkflowExecution struct {
+	ID           WorkflowExecutionID  `json:"id,omitempty"`
+	WorkflowBase WorkflowDefinitionID `json:"workflow_base,omitempty"`
 }
 
 type FatWorkflowDefinition struct {

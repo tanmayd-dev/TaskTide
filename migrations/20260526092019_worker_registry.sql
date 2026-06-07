@@ -8,6 +8,11 @@ CREATE TABLE worker (
     worker_available BOOL NOT NULL
 );
 
+CREATE TABLE workflow_execution (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workflow_base UUID REFERENCES workflow_definition(id) NOT NULL
+);
+
 CREATE TABLE task_execution (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     task_base UUID REFERENCES task_definition(id) NOT NULL,
@@ -15,7 +20,8 @@ CREATE TABLE task_execution (
     task_assigned BOOL NOT NULL,
     task_completed BOOL NOT NULL,
     task_input UUID REFERENCES input_file(id),
-    task_output UUID REFERENCES input_file(id)
+    task_output UUID REFERENCES input_file(id),
+    workflow_id UUID REFERENCES workflow_execution(id) NOT NULL
 );
 
 CREATE TABLE task_execution_depends (
@@ -29,3 +35,4 @@ SELECT 'down SQL query';
 DROP TABLE worker CASCADE;
 DROP TABLE task_execution CASCADE;
 DROP TABLE task_execution_depends CASCADE;
+DROP TABLE workflow_execution CASCADE;

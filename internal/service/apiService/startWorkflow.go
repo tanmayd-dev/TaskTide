@@ -57,6 +57,7 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 			task := taskIDToModel[taskID]
 			jsonTask, err := json.Marshal(task)
 			if err != nil {
+				fmt.Printf("%#v", err)
 				return err
 			}
 			log.Printf("sending: %#v\n", task)
@@ -67,6 +68,7 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 				bytes.NewBuffer(jsonTask),
 			)
 			if (err != nil) || (!(200 <= resp.StatusCode && resp.StatusCode <= 300)) {
+				fmt.Printf("%#v", err)
 				return err
 			}
 		}

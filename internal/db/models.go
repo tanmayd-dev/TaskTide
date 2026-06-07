@@ -45,6 +45,7 @@ type TaskExecution struct {
 	TaskCompleted bool
 	TaskInput     pgtype.UUID
 	TaskOutput    pgtype.UUID
+	WorkflowID    pgtype.UUID
 }
 
 type TaskExecutionDepend struct {
@@ -65,4 +66,9 @@ type WorkflowDefinition struct {
 	WorkflowName   pgtype.Text
 	WorkflowInput  pgtype.UUID
 	WorkflowOutput pgtype.UUID
+}
+
+type WorkflowExecution struct {
+	ID           pgtype.UUID
+	WorkflowBase pgtype.UUID
 }

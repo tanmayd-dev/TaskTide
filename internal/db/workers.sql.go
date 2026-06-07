@@ -43,7 +43,7 @@ UPDATE task_execution
 SET task_assigned = TRUE,
 task_worker = $1
 WHERE id = $2
-RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output
+RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
 `
 
 type AssignWorkerToTaskParams struct {
@@ -62,6 +62,7 @@ func (q *Queries) AssignWorkerToTask(ctx context.Context, arg AssignWorkerToTask
 		&i.TaskCompleted,
 		&i.TaskInput,
 		&i.TaskOutput,
+		&i.WorkflowID,
 	)
 	return i, err
 }
@@ -72,20 +73,27 @@ INSERT INTO task_execution (
     task_worker,
     task_assigned,
     task_completed,
-    task_input
+    task_input,
+    workflow_id
 ) VALUES (
-    $1, $2, FALSE, FALSE, $3
-) RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output
+    $1, $2, FALSE, FALSE, $3, $4
+) RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
 `
 
 type CreateTaskExecutionParams struct {
 	TaskBase   pgtype.UUID
 	TaskWorker pgtype.UUID
 	TaskInput  pgtype.UUID
+	WorkflowID pgtype.UUID
 }
 
 func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecutionParams) (TaskExecution, error) {
-	row := q.db.QueryRow(ctx, createTaskExecution, arg.TaskBase, arg.TaskWorker, arg.TaskInput)
+	row := q.db.QueryRow(ctx, createTaskExecution,
+		arg.TaskBase,
+		arg.TaskWorker,
+		arg.TaskInput,
+		arg.WorkflowID,
+	)
 	var i TaskExecution
 	err := row.Scan(
 		&i.ID,
@@ -95,7 +103,23 @@ func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecuti
 		&i.TaskCompleted,
 		&i.TaskInput,
 		&i.TaskOutput,
+		&i.WorkflowID,
 	)
+	return i, err
+}
+
+const createWorkflowExecution = `-- name: CreateWorkflowExecution :one
+INSERT INTO workflow_execution (
+    workflow_base
+) VALUES (
+    $1
+) RETURNING id, workflow_base
+`
+
+func (q *Queries) CreateWorkflowExecution(ctx context.Context, workflowBase pgtype.UUID) (WorkflowExecution, error) {
+	row := q.db.QueryRow(ctx, createWorkflowExecution, workflowBase)
+	var i WorkflowExecution
+	err := row.Scan(&i.ID, &i.WorkflowBase)
 	return i, err
 }
 
@@ -118,7 +142,7 @@ func (q *Queries) GetAvailableWorker(ctx context.Context) (Worker, error) {
 }
 
 const getTasksExecution = `-- name: GetTasksExecution :many
-SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output FROM task_execution WHERE (
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution WHERE (
     id = $1
 )
 `
@@ -140,6 +164,7 @@ func (q *Queries) GetTasksExecution(ctx context.Context, id pgtype.UUID) ([]Task
 			&i.TaskCompleted,
 			&i.TaskInput,
 			&i.TaskOutput,
+			&i.WorkflowID,
 		); err != nil {
 			return nil, err
 		}
@@ -152,15 +177,41 @@ func (q *Queries) GetTasksExecution(ctx context.Context, id pgtype.UUID) ([]Task
 }
 
 const getUnassignedTasks = `-- name: GetUnassignedTasks :one
-SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output FROM task_execution WHERE (
-    task_assigned = FALSE AND
-    task_completed = FALSE
+SELECT a.id, a.task_base, a.task_worker, a.task_assigned, a.task_completed, a.task_input, a.task_output, a.workflow_id, task_definition_depends.id, task_id, task_depends_on, b.id, b.task_base, b.task_worker, b.task_assigned, b.task_completed, b.task_input, b.task_output, b.workflow_id FROM task_execution A
+INNER JOIN task_definition_depends ON task_definition_depends.id = A.task_base
+INNER JOIN task_execution B ON A.workflow_id = B.workflow_id AND B.task_base = task_definition_depends.task_depends_on
+WHERE (
+    A.task_assigned = FALSE AND
+    A.task_completed = FALSE AND
+    B.task_completed = TRUE
 ) LIMIT 1
 `
 
-func (q *Queries) GetUnassignedTasks(ctx context.Context) (TaskExecution, error) {
+type GetUnassignedTasksRow struct {
+	ID              pgtype.UUID
+	TaskBase        pgtype.UUID
+	TaskWorker      pgtype.UUID
+	TaskAssigned    bool
+	TaskCompleted   bool
+	TaskInput       pgtype.UUID
+	TaskOutput      pgtype.UUID
+	WorkflowID      pgtype.UUID
+	ID_2            pgtype.UUID
+	TaskID          pgtype.UUID
+	TaskDependsOn   pgtype.UUID
+	ID_3            pgtype.UUID
+	TaskBase_2      pgtype.UUID
+	TaskWorker_2    pgtype.UUID
+	TaskAssigned_2  bool
+	TaskCompleted_2 bool
+	TaskInput_2     pgtype.UUID
+	TaskOutput_2    pgtype.UUID
+	WorkflowID_2    pgtype.UUID
+}
+
+func (q *Queries) GetUnassignedTasks(ctx context.Context) (GetUnassignedTasksRow, error) {
 	row := q.db.QueryRow(ctx, getUnassignedTasks)
-	var i TaskExecution
+	var i GetUnassignedTasksRow
 	err := row.Scan(
 		&i.ID,
 		&i.TaskBase,
@@ -169,6 +220,18 @@ func (q *Queries) GetUnassignedTasks(ctx context.Context) (TaskExecution, error)
 		&i.TaskCompleted,
 		&i.TaskInput,
 		&i.TaskOutput,
+		&i.WorkflowID,
+		&i.ID_2,
+		&i.TaskID,
+		&i.TaskDependsOn,
+		&i.ID_3,
+		&i.TaskBase_2,
+		&i.TaskWorker_2,
+		&i.TaskAssigned_2,
+		&i.TaskCompleted_2,
+		&i.TaskInput_2,
+		&i.TaskOutput_2,
+		&i.WorkflowID_2,
 	)
 	return i, err
 }

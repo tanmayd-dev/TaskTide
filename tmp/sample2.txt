@@ -1,0 +1,2 @@
+Second sample file for TaskTide workflow testing.
+Contains plain text to simulate workflow input.

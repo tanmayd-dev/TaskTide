@@ -55,11 +55,14 @@ type InputFile struct {
 }
 
 type TaskDefinition struct {
-	ID         TaskDefinitionID     `json:"id,omitempty"`
-	TaskType   TaskType             `json:"task_type,omitempty"`
-	TaskName   string               `json:"task_name,omitempty"`
-	WorkflowID WorkflowDefinitionID `json:"workflow_id,omitempty"`
-	TaskInput  InputFileID          `json:"task_input,omitempty"`
+	ID                  TaskDefinitionID     `json:"id,omitempty"`
+	TaskType            TaskType             `json:"task_type,omitempty"`
+	TaskName            string               `json:"task_name,omitempty"`
+	WorkflowID          WorkflowDefinitionID `json:"workflow_id,omitempty"`
+	TaskInput           InputFileID          `json:"task_input,omitempty"`
+	TaskInputTask       TaskDefinitionID     `json:"task_input_task,omitempty"`
+	TaskOutput          InputFileID          `json:"task_output,omitempty"`
+	WorkflowExecutionID WorkflowExecutionID  `json:"workflow_execution_id,omitempty"`
 }
 
 type TaskExecution struct {
@@ -96,8 +99,9 @@ type FatWorkflowDefinition struct {
 }
 
 type TaskDependency struct {
-	ID           TaskDefinitionID   `json:"id,omitempty"`
-	Dependencies []TaskDefinitionID `json:"dependencies,omitempty"`
+	ID                  TaskDefinitionID   `json:"id,omitempty"`
+	Dependencies        []TaskDefinitionID `json:"dependencies,omitempty"`
+	InputFromDependency TaskDefinitionID   `json:"input_from_dependency,omitempty"`
 }
 
 type TaskAttempt struct {

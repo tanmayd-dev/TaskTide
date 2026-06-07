@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -62,6 +63,39 @@ func UploadFile(queries *db.Queries, ctx context.Context, minioClient *minio.Cli
 			log.Printf("%v\n", err.Error())
 		}
 		return db.InputFile{}, errors.New("could not add file to bucket")
+	}
+	return minioFile, nil
+}
+
+func CreateDefaultNullFile(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName string) (db.InputFile, error) {
+	err := ensureBucketExists(ctx, minioClient, bucketName)
+	if err != nil {
+		return db.InputFile{}, err
+	}
+
+	minioFile, err := queries.CreateFile(ctx, "default-null-file")
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		return db.InputFile{}, errors.New("could not create default file in database")
+	}
+
+	_, err = minioClient.PutObject(
+		ctx,
+		bucketName,
+		fmt.Sprintf("%v/%v", minioFile.ID, minioFile.FileName),
+		bytes.NewReader([]byte{}),
+		0,
+		minio.PutObjectOptions{
+			ContentType: "application/octet-stream",
+		},
+	)
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		deleteErr := queries.DeleteFile(ctx, minioFile.ID)
+		if deleteErr != nil {
+			log.Printf("%v\n", deleteErr.Error())
+		}
+		return db.InputFile{}, errors.New("could not add default file to bucket")
 	}
 	return minioFile, nil
 }

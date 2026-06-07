@@ -2,9 +2,12 @@
 INSERT INTO task_definition (
     task_name,
     task_type,
-    workflow_id
+    workflow_id,
+    task_input_file,
+    task_input_task,
+    task_output
 ) VALUES (
-    $1, $2, $3
+    $1, $2, $3, $4, $5, $6
 ) RETURNING *;
 
 -- name: GetTask :one
@@ -24,6 +27,12 @@ INSERT INTO task_definition_depends (
 ) VALUES (
     $1, $2
 ) RETURNING *;
+
+-- name: UpdateTaskInputTask :exec
+UPDATE task_definition SET
+task_input_task = $2
+WHERE id = $1
+RETURNING *;
 
 -- name: GetTaskDependencies :many
 SELECT * FROM task_definition_depends

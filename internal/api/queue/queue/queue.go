@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/service/queueService"
@@ -38,16 +39,27 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 			http.Error(w, "Could not parse workflow ID", http.StatusBadRequest)
 			return
 		}
-		workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
-		if err != nil {
-			log.Printf("could not create workflow execution: %v\n", err.Error())
-			http.Error(w, "Could not create workflow execution", http.StatusInternalServerError)
-			return
+		var workflowExecutionID pgtype.UUID
+		if task.WorkflowExecutionID != "" {
+			workflowExecutionID, err = utils.StringToUUID(string(task.WorkflowExecutionID))
+			if err != nil {
+				log.Printf("could not parse workflow execution ID: %v\n", err.Error())
+				http.Error(w, "Could not parse workflow execution ID", http.StatusBadRequest)
+				return
+			}
+		} else {
+			workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
+			if err != nil {
+				log.Printf("could not create workflow execution: %v\n", err.Error())
+				http.Error(w, "Could not create workflow execution", http.StatusInternalServerError)
+				return
+			}
+			workflowExecutionID = workflowExecution.ID
 		}
 		_, err = queries.CreateTaskExecution(ctx, db.CreateTaskExecutionParams{
 			TaskBase:   taskUUID,
 			TaskInput:  taskInputUUID,
-			WorkflowID: workflowExecution.ID,
+			WorkflowID: workflowExecutionID,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())

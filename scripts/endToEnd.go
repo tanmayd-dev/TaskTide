@@ -33,25 +33,32 @@ func main() {
 	attachFileToWorkflow(baseURL, workflowID, file1)
 	log.Printf("uploaded two files: %s, %s\n", file1.FileName, file2.FileName)
 
-	taskStandalone1 := createTask(baseURL, workflowID, models.TaskNOOP, "Standalone Task 1")
-	taskStandalone2 := createTask(baseURL, workflowID, models.TaskNOOP, "Standalone Task 2")
-	taskRead := createTask(baseURL, workflowID, models.TaskDocRead, "Read Input File")
-	taskCheck := createTask(baseURL, workflowID, models.TaskDocCheckSensitive, "Check Input File")
-	taskAggregate := createTask(baseURL, workflowID, models.TaskCSVAggregate, "Aggregate Results")
-	taskSummary := createTask(baseURL, workflowID, models.TaskCSVFilter, "Summarize Output")
-	log.Printf("created standalone tasks %s, %s\n", taskStandalone1, taskStandalone2)
+	// Create a simple 3-task chain by wiring outputs to inputs directly (no explicit dependencies)
+	// Task A will produce an output file (use uploaded file1 as its declared output)
+	chainTaskA := createTask(baseURL, workflowID, models.TaskNOOP, "Chain Task A", "", file1.ID)
+	// Task B takes Task A's output as input and declares a new output (use uploaded file2)
+	chainTaskB := createTask(baseURL, workflowID, models.TaskNOOP, "Chain Task B", file1.ID, file2.ID)
+	// Task C takes Task B's output as input; no explicit dependency recorded
+	chainTaskC := createTask(baseURL, workflowID, models.TaskNOOP, "Chain Task C", file2.ID, "")
 
-	addDependency(baseURL, taskCheck, []models.TaskDefinitionID{taskRead})
-	addDependency(baseURL, taskAggregate, []models.TaskDefinitionID{taskCheck})
-	addDependency(baseURL, taskSummary, []models.TaskDefinitionID{taskAggregate})
+	log.Printf("created chained tasks %s -> %s -> %s\n", chainTaskA, chainTaskB, chainTaskC)
 
-	log.Println("workflow task hierarchy created")
-
+	// Show workflow and start it
 	workflow := getWorkflow(baseURL, workflowID)
 	log.Printf("workflow details: %+v\n", workflow)
 
 	startWorkflow(baseURL, workflowID)
 	log.Println("workflow execution requested")
+
+	// workflowNoInputID := createWorkflow(baseURL, "EndToEndNoInput")
+	// log.Println("created no-input workflow", workflowNoInputID)
+	// taskNoInput := createTask(baseURL, workflowNoInputID, models.TaskNOOP, "No Input Task", "", "")
+	// taskDependent := createTask(baseURL, workflowNoInputID, models.TaskNOOP, "Dependent Task", "", "")
+	// addDependency(baseURL, taskDependent, []models.TaskDefinitionID{taskNoInput}, taskNoInput)
+	// log.Println("created no-input workflow with dependency and default null input branch")
+
+	// startWorkflow(baseURL, workflowNoInputID)
+	// log.Println("no-input workflow execution requested")
 }
 
 func getEnv(key, fallback string) string {
@@ -93,11 +100,13 @@ func createWorkflow(base, name string) models.WorkflowDefinitionID {
 	return workflow.ID
 }
 
-func createTask(base string, workflowID models.WorkflowDefinitionID, taskType models.TaskType, taskName string) models.TaskDefinitionID {
+func createTask(base string, workflowID models.WorkflowDefinitionID, taskType models.TaskType, taskName string, taskInput models.InputFileID, taskOutput models.InputFileID) models.TaskDefinitionID {
 	request := models.TaskDefinition{
 		WorkflowID: workflowID,
 		TaskType:   taskType,
 		TaskName:   taskName,
+		TaskInput:  taskInput,
+		TaskOutput: taskOutput,
 	}
 	response := postJSON(base, "/workflow/add", request)
 	defer response.Body.Close()
@@ -105,15 +114,15 @@ func createTask(base string, workflowID models.WorkflowDefinitionID, taskType mo
 	if err := json.NewDecoder(response.Body).Decode(&task); err != nil {
 		log.Fatalf("could not decode task response: %v", err)
 	}
-	log.Printf("created task %s (%s)", taskName, task.ID)
+	log.Printf("created task %s (%s) input=%s output=%s", taskName, task.ID, taskInput, taskOutput)
 	return task.ID
 }
 
-func addDependency(base string, taskID models.TaskDefinitionID, dependencies []models.TaskDefinitionID) {
-	request := models.TaskDependency{ID: taskID, Dependencies: dependencies}
+func addDependency(base string, taskID models.TaskDefinitionID, dependencies []models.TaskDefinitionID, inputFromDependency models.TaskDefinitionID) {
+	request := models.TaskDependency{ID: taskID, Dependencies: dependencies, InputFromDependency: inputFromDependency}
 	response := postJSON(base, "/workflow/dependency", request)
 	response.Body.Close()
-	log.Printf("added dependency for %s -> %v", taskID, dependencies)
+	log.Printf("added dependency for %s -> %v inputFrom=%s", taskID, dependencies, inputFromDependency)
 }
 
 func attachFileToWorkflow(base string, workflowID models.WorkflowDefinitionID, file models.InputFile) {

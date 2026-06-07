@@ -41,6 +41,10 @@ func TaskExecutionModel(taskExecutionDB db.TaskExecution) models.TaskExecution {
 	if taskExecutionDB.TaskInput.Valid {
 		taskInput = models.InputFileID(taskExecutionDB.TaskInput.String())
 	}
+	taskOutput := models.InputFileID("")
+	if taskExecutionDB.TaskOutput.Valid {
+		taskOutput = models.InputFileID(taskExecutionDB.TaskOutput.String())
+	}
 	return models.TaskExecution{
 		ID:            models.TaskExecutionID(taskExecutionDB.ID.String()),
 		TaskBase:      models.TaskDefinitionID(taskExecutionDB.TaskBase.String()),
@@ -48,6 +52,7 @@ func TaskExecutionModel(taskExecutionDB db.TaskExecution) models.TaskExecution {
 		TaskAssigned:  taskExecutionDB.TaskAssigned,
 		TaskCompleted: taskExecutionDB.TaskCompleted,
 		TaskInput:     taskInput,
+		TaskOutput:    taskOutput,
 	}
 }
 

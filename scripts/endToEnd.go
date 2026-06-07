@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
@@ -29,26 +30,24 @@ func main() {
 	log.Println("created workflow", workflowID)
 
 	file1 := uploadFile(baseURL, "tmp/sample1.txt")
-	file2 := uploadFile(baseURL, "tmp/sample2.txt")
 	attachFileToWorkflow(baseURL, workflowID, file1)
-	log.Printf("uploaded two files: %s, %s\n", file1.FileName, file2.FileName)
+	log.Printf("uploaded file: %s\n", file1.FileName)
 
-	// Create a simple 3-task chain by wiring outputs to inputs directly (no explicit dependencies)
-	// Task A will produce an output file (use uploaded file1 as its declared output)
-	chainTaskA := createTask(baseURL, workflowID, models.TaskNOOP, "Chain Task A", "", file1.ID)
-	// Task B takes Task A's output as input and declares a new output (use uploaded file2)
-	chainTaskB := createTask(baseURL, workflowID, models.TaskNOOP, "Chain Task B", file1.ID, file2.ID)
-	// Task C takes Task B's output as input; no explicit dependency recorded
-	chainTaskC := createTask(baseURL, workflowID, models.TaskNOOP, "Chain Task C", file2.ID, "")
+	// Create a simple chain: A -> B -> C -> OUTPUT
+	chainTaskA := createTask(baseURL, workflowID, models.TaskNOOP, "Chain Task A", file1.ID, "")
+	chainTaskB := createTask(baseURL, workflowID, models.TaskNOOP, "Chain Task B", "", chainTaskA)
+	chainTaskC := createTask(baseURL, workflowID, models.TaskNOOP, "Chain Task C", "", chainTaskB)
+	outputTask := createTask(baseURL, workflowID, models.TaskOUTPUT, "Chain Task Output", "", chainTaskC)
 
-	log.Printf("created chained tasks %s -> %s -> %s\n", chainTaskA, chainTaskB, chainTaskC)
+	log.Printf("created chained tasks %s -> %s -> %s -> %s\n", chainTaskA, chainTaskB, chainTaskC, outputTask)
 
 	// Show workflow and start it
 	workflow := getWorkflow(baseURL, workflowID)
 	log.Printf("workflow details: %+v\n", workflow)
 
-	startWorkflow(baseURL, workflowID)
-	log.Println("workflow execution requested")
+	executionID := startWorkflow(baseURL, workflowID)
+	log.Printf("workflow execution requested: %s", executionID)
+	pollWorkflowStatus(baseURL, executionID)
 
 	// workflowNoInputID := createWorkflow(baseURL, "EndToEndNoInput")
 	// log.Println("created no-input workflow", workflowNoInputID)
@@ -100,13 +99,13 @@ func createWorkflow(base, name string) models.WorkflowDefinitionID {
 	return workflow.ID
 }
 
-func createTask(base string, workflowID models.WorkflowDefinitionID, taskType models.TaskType, taskName string, taskInput models.InputFileID, taskOutput models.InputFileID) models.TaskDefinitionID {
+func createTask(base string, workflowID models.WorkflowDefinitionID, taskType models.TaskType, taskName string, taskInput models.InputFileID, taskInputTask models.TaskDefinitionID) models.TaskDefinitionID {
 	request := models.TaskDefinition{
-		WorkflowID: workflowID,
-		TaskType:   taskType,
-		TaskName:   taskName,
-		TaskInput:  taskInput,
-		TaskOutput: taskOutput,
+		WorkflowID:    workflowID,
+		TaskType:      taskType,
+		TaskName:      taskName,
+		TaskInput:     taskInput,
+		TaskInputTask: taskInputTask,
 	}
 	response := postJSON(base, "/workflow/add", request)
 	defer response.Body.Close()
@@ -114,7 +113,7 @@ func createTask(base string, workflowID models.WorkflowDefinitionID, taskType mo
 	if err := json.NewDecoder(response.Body).Decode(&task); err != nil {
 		log.Fatalf("could not decode task response: %v", err)
 	}
-	log.Printf("created task %s (%s) input=%s output=%s", taskName, task.ID, taskInput, taskOutput)
+	log.Printf("created task %s (%s) input=%s input_task=%s", taskName, task.ID, taskInput, task.TaskInputTask)
 	return task.ID
 }
 
@@ -161,10 +160,52 @@ func getWorkflow(base string, workflowID models.WorkflowDefinitionID) models.Fat
 	return workflow
 }
 
-func startWorkflow(base string, workflowID models.WorkflowDefinitionID) {
+func startWorkflow(base string, workflowID models.WorkflowDefinitionID) models.WorkflowExecutionID {
 	request := models.WorkflowDefinition{ID: workflowID}
 	response := postJSON(base, "/workflow/", request)
-	response.Body.Close()
+	defer response.Body.Close()
+	var execution models.WorkflowExecution
+	if err := json.NewDecoder(response.Body).Decode(&execution); err != nil {
+		log.Fatalf("could not decode workflow execution response: %v", err)
+	}
+	return execution.ID
+}
+
+func pollWorkflowStatus(base string, executionID models.WorkflowExecutionID) {
+	request := models.WorkflowExecution{ID: executionID}
+	for i := 0; i < 30; i++ {
+		response := postJSON(base, "/workflow/status", request)
+		var tasks []models.TaskExecution
+		if err := json.NewDecoder(response.Body).Decode(&tasks); err != nil {
+			response.Body.Close()
+			log.Fatalf("could not decode workflow status response: %v", err)
+		}
+		response.Body.Close()
+		if len(tasks) == 0 {
+			log.Printf("workflow has no task executions yet")
+		} else {
+			allCompleted := true
+			for _, t := range tasks {
+				if !t.TaskCompleted {
+					allCompleted = false
+					break
+				}
+			}
+			if allCompleted {
+				log.Printf("workflow execution %s complete", executionID)
+				return
+			}
+			completedCount := 0
+			for _, t := range tasks {
+				if t.TaskCompleted {
+					completedCount++
+				}
+			}
+			log.Printf("workflow execution %s waiting, %d/%d tasks complete", executionID, completedCount, len(tasks))
+		}
+		time.Sleep(2 * time.Second)
+	}
+	log.Fatalf("workflow execution %s did not complete in time", executionID)
 }
 
 func uploadFile(base, path string) models.InputFile {

@@ -14,6 +14,11 @@ INSERT INTO workflow_execution (
     $1
 ) RETURNING *;
 
+-- name: GetWorkflowExecution :one
+SELECT * FROM workflow_execution WHERE (
+    id = $1
+);
+
 -- name: CreateTaskExecution :one
 INSERT INTO task_execution (
     task_base,
@@ -21,9 +26,10 @@ INSERT INTO task_execution (
     task_assigned,
     task_completed,
     task_input,
+    task_output,
     workflow_id
 ) VALUES (
-    $1, $2, FALSE, FALSE, $3, $4
+    $1, $2, FALSE, FALSE, $3, $4, $5
 ) RETURNING *;
 
 -- name: MarkWorkerUnavailable :one

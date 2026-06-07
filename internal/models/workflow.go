@@ -16,6 +16,7 @@ type TaskAttemptID string
 
 const (
 	TaskNOOP              TaskType = "NOOP"
+	TaskOUTPUT            TaskType = "OUTPUT"
 	TaskDocRead           TaskType = "doc.read"
 	TaskDocCheckSensitive TaskType = "doc.check_sensitive"
 	TaskCSVRead           TaskType = "csv.read"
@@ -26,6 +27,7 @@ const (
 
 var validTaskTypes = map[TaskType]struct{}{
 	TaskNOOP:              {},
+	TaskOUTPUT:            {},
 	TaskDocRead:           {},
 	TaskDocCheckSensitive: {},
 	TaskCSVRead:           {},
@@ -72,6 +74,7 @@ type TaskExecution struct {
 	TaskAssigned  bool                `json:"task_assigned,omitempty"`
 	TaskCompleted bool                `json:"task_completed,omitempty"`
 	TaskInput     InputFileID         `json:"task_input,omitempty"`
+	TaskOutput    InputFileID         `json:"task_output,omitempty"`
 	WorkflowID    WorkflowExecutionID `json:"workflow_id,omitempty"`
 }
 

@@ -68,15 +68,19 @@ func UploadFile(queries *db.Queries, ctx context.Context, minioClient *minio.Cli
 }
 
 func CreateDefaultNullFile(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName string) (db.InputFile, error) {
+	return CreateEmptyFile(ctx, queries, minioClient, bucketName, "default-null-file")
+}
+
+func CreateEmptyFile(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName, fileName string) (db.InputFile, error) {
 	err := ensureBucketExists(ctx, minioClient, bucketName)
 	if err != nil {
 		return db.InputFile{}, err
 	}
 
-	minioFile, err := queries.CreateFile(ctx, "default-null-file")
+	minioFile, err := queries.CreateFile(ctx, fileName)
 	if err != nil {
 		log.Printf("%v\n", err.Error())
-		return db.InputFile{}, errors.New("could not create default file in database")
+		return db.InputFile{}, errors.New("could not create file in database")
 	}
 
 	_, err = minioClient.PutObject(
@@ -95,7 +99,7 @@ func CreateDefaultNullFile(ctx context.Context, queries *db.Queries, minioClient
 		if deleteErr != nil {
 			log.Printf("%v\n", deleteErr.Error())
 		}
-		return db.InputFile{}, errors.New("could not add default file to bucket")
+		return db.InputFile{}, errors.New("could not add file to bucket")
 	}
 	return minioFile, nil
 }

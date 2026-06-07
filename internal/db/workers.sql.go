@@ -75,9 +75,10 @@ INSERT INTO task_execution (
     task_assigned,
     task_completed,
     task_input,
+    task_output,
     workflow_id
 ) VALUES (
-    $1, $2, FALSE, FALSE, $3, $4
+    $1, $2, FALSE, FALSE, $3, $4, $5
 ) RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
 `
 
@@ -85,6 +86,7 @@ type CreateTaskExecutionParams struct {
 	TaskBase   pgtype.UUID
 	TaskWorker pgtype.UUID
 	TaskInput  pgtype.UUID
+	TaskOutput pgtype.UUID
 	WorkflowID pgtype.UUID
 }
 
@@ -93,6 +95,7 @@ func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecuti
 		arg.TaskBase,
 		arg.TaskWorker,
 		arg.TaskInput,
+		arg.TaskOutput,
 		arg.WorkflowID,
 	)
 	var i TaskExecution
@@ -206,6 +209,19 @@ func (q *Queries) GetUnassignedTasks(ctx context.Context) (TaskExecution, error)
 		&i.TaskOutput,
 		&i.WorkflowID,
 	)
+	return i, err
+}
+
+const getWorkflowExecution = `-- name: GetWorkflowExecution :one
+SELECT id, workflow_base FROM workflow_execution WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) GetWorkflowExecution(ctx context.Context, id pgtype.UUID) (WorkflowExecution, error) {
+	row := q.db.QueryRow(ctx, getWorkflowExecution, id)
+	var i WorkflowExecution
+	err := row.Scan(&i.ID, &i.WorkflowBase)
 	return i, err
 }
 

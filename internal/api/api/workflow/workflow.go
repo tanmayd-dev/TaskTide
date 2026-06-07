@@ -56,7 +56,6 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 		}
 		var taskInputFile pgtype.UUID
 		var taskInputTask pgtype.UUID
-		var taskOutput pgtype.UUID
 		if taskDef.TaskInput != "" {
 			taskInputFile, err = utils.StringToUUID(string(taskDef.TaskInput))
 			if err != nil {
@@ -73,14 +72,6 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 				return
 			}
 		}
-		if taskDef.TaskOutput != "" {
-			taskOutput, err = utils.StringToUUID(string(taskDef.TaskOutput))
-			if err != nil {
-				log.Printf("%v\n", err.Error())
-				http.Error(w, "Could not parse task output file", http.StatusBadRequest)
-				return
-			}
-		}
 		createdTask, err := queries.CreateTask(ctx, db.CreateTaskParams{
 			TaskName: pgtype.Text{
 				String: taskDef.TaskName,
@@ -90,7 +81,6 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 			WorkflowID:    workflowUUID,
 			TaskInputFile: taskInputFile,
 			TaskInputTask: taskInputTask,
-			TaskOutput:    taskOutput,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())
@@ -194,15 +184,24 @@ func handleStart(queries *db.Queries, ctx context.Context, minioClient *minio.Cl
 		var workflowDef models.WorkflowDefinition
 		err := json.NewDecoder(r.Body).Decode(&workflowDef)
 		if err != nil {
-			jsonTask, err := json.Marshal(workflowDef)
-			if err != nil {
+			jsonTask, jsonErr := json.Marshal(workflowDef)
+			if jsonErr != nil {
 				http.Error(w, "Could not parse Task.", http.StatusBadRequest)
 				return
 			}
 			http.Error(w, fmt.Sprintf("Could not parse Task. Format is: %s", jsonTask), http.StatusBadRequest)
 			return
 		}
-		go apiservice.StartWorkflow(queries, ctx, minioClient, workflowDef.ID)
+
+		executionID, err := apiservice.StartWorkflow(queries, ctx, minioClient, workflowDef.ID)
+		if err != nil {
+			log.Printf("failed to start workflow: %v", err)
+			http.Error(w, "Could not start workflow", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(models.WorkflowExecution{ID: executionID})
 	}
 }
 

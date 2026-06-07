@@ -33,6 +33,10 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 		if err != nil {
 			log.Printf("No task input: %v\n", err.Error())
 		}
+		taskOutputUUID, err := utils.StringToUUID(string(task.TaskOutput))
+		if err != nil {
+			log.Printf("No task output: %v\n", err.Error())
+		}
 		workflowUUID, err := utils.StringToUUID(string(task.WorkflowID))
 		if err != nil {
 			log.Printf("could not parse workflow ID: %v\n", err.Error())
@@ -59,6 +63,7 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 		_, err = queries.CreateTaskExecution(ctx, db.CreateTaskExecutionParams{
 			TaskBase:   taskUUID,
 			TaskInput:  taskInputUUID,
+			TaskOutput: taskOutputUUID,
 			WorkflowID: workflowExecutionID,
 		})
 		if err != nil {

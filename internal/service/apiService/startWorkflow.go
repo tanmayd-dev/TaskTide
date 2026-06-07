@@ -16,14 +16,14 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workflowID models.WorkflowDefinitionID) error {
+func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workflowID models.WorkflowDefinitionID) (models.WorkflowExecutionID, error) {
 	workflowUUID, err := utils.StringToUUID(string(workflowID))
 	if err != nil {
-		return err
+		return "", err
 	}
 	workflow, err := queries.GetWorkflow(ctx, workflowUUID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	workflowInput := models.InputFileID("")
 	if workflow.WorkflowInput.Valid {
@@ -31,11 +31,11 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 	}
 	workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	taskDBs, err := queries.GetWorkflowTasks(ctx, workflowUUID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	dependencies := make(map[models.TaskDefinitionID]map[models.TaskDefinitionID]struct{})
 	dependents := make(map[models.TaskDefinitionID][]models.TaskDefinitionID)
@@ -44,7 +44,7 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 		dependencies[models.TaskDefinitionID(taskDB.ID.String())] = make(map[models.TaskDefinitionID]struct{})
 		dependencyTaskDBs, err := queries.GetTaskDependencies(ctx, taskDB.ID)
 		if err != nil {
-			return err
+			return "", err
 		}
 		taskModel := utils.TaskDefinitionModel(taskDB)
 		taskModel.WorkflowExecutionID = models.WorkflowExecutionID(workflowExecution.ID.String())
@@ -53,7 +53,30 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 			dependencies[models.TaskDefinitionID(taskDB.ID.String())][dependencyModel] = struct{}{}
 			dependents[dependencyModel] = append(dependents[dependencyModel], models.TaskDefinitionID(taskDB.ID.String()))
 		}
-		taskIDToModel[models.TaskDefinitionID(taskDB.ID.String())] = taskModel
+		taskID := models.TaskDefinitionID(taskDB.ID.String())
+		if taskModel.TaskInputTask != "" {
+			dependencies[taskID][taskModel.TaskInputTask] = struct{}{}
+			dependents[taskModel.TaskInputTask] = append(dependents[taskModel.TaskInputTask], taskID)
+		}
+		taskIDToModel[taskID] = taskModel
+	}
+	for taskID, task := range taskIDToModel {
+		if task.TaskOutput == "" {
+			outputFile, err := repositories.CreateEmptyFile(ctx, queries, minioClient, os.Getenv("FILES_BUCKET_NAME"), fmt.Sprintf("%s-output", task.TaskName))
+			if err != nil {
+				return "", err
+			}
+			task.TaskOutput = models.InputFileID(outputFile.ID.String())
+			taskIDToModel[taskID] = task
+			taskUUID, err := utils.StringToUUID(string(taskID))
+			if err != nil {
+				return "", err
+			}
+			err = queries.UpdateTaskOutput(ctx, db.UpdateTaskOutputParams{ID: taskUUID, TaskOutput: outputFile.ID})
+			if err != nil {
+				return "", err
+			}
+		}
 	}
 	for taskID, task := range taskIDToModel {
 		if task.TaskInput == "" {
@@ -68,7 +91,7 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 			if task.TaskInput == "" {
 				inputFile, err := repositories.CreateDefaultNullFile(ctx, queries, minioClient, os.Getenv("FILES_BUCKET_NAME"))
 				if err != nil {
-					return err
+					return "", err
 				}
 				task.TaskInput = models.InputFileID(inputFile.ID.String())
 			}
@@ -92,7 +115,7 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 			jsonTask, err := json.Marshal(task)
 			if err != nil {
 				fmt.Printf("%#v", err)
-				return err
+				return "", err
 			}
 			log.Printf("sending: %#v\n", task)
 			url := fmt.Sprintf("http://%v:%v/", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT"))
@@ -103,12 +126,12 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 			)
 			if err != nil {
 				fmt.Printf("%#v", err)
-				return err
+				return "", err
 			}
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				return fmt.Errorf("queue returned status %d", resp.StatusCode)
+				return "", fmt.Errorf("queue returned status %d", resp.StatusCode)
 			}
 		}
 	}
-	return nil
+	return models.WorkflowExecutionID(workflowExecution.ID.String()), nil
 }

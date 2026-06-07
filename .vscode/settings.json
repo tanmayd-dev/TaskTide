@@ -9,7 +9,9 @@
         "ossp",
         "pgtype",
         "pgxpool",
+        "sqlc",
         "tanmayd",
+        "testutil",
         "uuid"
     ]
 }

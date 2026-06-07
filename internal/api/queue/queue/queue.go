@@ -34,15 +34,19 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 		}
 		workflowUUID, err := utils.StringToUUID(string(task.WorkflowID))
 		if err != nil {
-			log.Printf("No task input: %v\n", err.Error())
+			log.Printf("could not parse workflow ID: %v\n", err.Error())
+			http.Error(w, "Could not parse workflow ID", http.StatusBadRequest)
+			return
 		}
 		workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
 		if err != nil {
-			log.Printf("No task input: %v\n", err.Error())
+			log.Printf("could not create workflow execution: %v\n", err.Error())
+			http.Error(w, "Could not create workflow execution", http.StatusInternalServerError)
+			return
 		}
 		_, err = queries.CreateTaskExecution(ctx, db.CreateTaskExecutionParams{
-			TaskBase: taskUUID,
-			TaskInput: taskInputUUID,
+			TaskBase:   taskUUID,
+			TaskInput:  taskInputUUID,
 			WorkflowID: workflowExecution.ID,
 		})
 		if err != nil {
@@ -52,19 +56,14 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 		}
 
 		go queueService.AssignWorker(queries, ctx)
+		w.WriteHeader(http.StatusAccepted)
 	}
 }
 
 func poll(queries *db.Queries, ctx context.Context) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var task db.TaskExecution
-		err := json.NewDecoder(r.Body).Decode(&task)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse task", http.StatusBadRequest)
-			return
-		}
 		go queueService.AssignWorker(queries, ctx)
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

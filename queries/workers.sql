@@ -30,13 +30,15 @@ INSERT INTO task_execution (
 UPDATE worker
 SET worker_available = FALSE
 WHERE id = $1
+  AND worker_available = TRUE
 RETURNING *;
 
 -- name: AssignWorkerToTask :one
 UPDATE task_execution
 SET task_assigned = TRUE,
-task_worker = $1
+    task_worker = $1
 WHERE id = $2
+  AND task_assigned = FALSE
 RETURNING *;
 
 -- name: GetAvailableWorker :one
@@ -45,13 +47,18 @@ SELECT * FROM worker WHERE (
 ) LIMIT 1;
 
 -- name: GetUnassignedTasks :one
-SELECT * FROM task_execution A
-INNER JOIN task_definition_depends ON task_definition_depends.id = A.task_base
-INNER JOIN task_execution B ON A.workflow_id = B.workflow_id AND B.task_base = task_definition_depends.task_depends_on
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution A
 WHERE (
     A.task_assigned = FALSE AND
     A.task_completed = FALSE AND
-    B.task_completed = TRUE
+    NOT EXISTS (
+        SELECT 1 FROM task_definition_depends d
+        LEFT JOIN task_execution dep
+            ON dep.workflow_id = A.workflow_id
+            AND dep.task_base = d.task_depends_on
+        WHERE d.task_id = A.task_base
+          AND (dep.task_completed = FALSE OR dep.id IS NULL)
+    )
 ) LIMIT 1;
 
 -- name: GetTasksExecution :many

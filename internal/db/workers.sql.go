@@ -41,8 +41,9 @@ func (q *Queries) AddWorker(ctx context.Context, arg AddWorkerParams) (Worker, e
 const assignWorkerToTask = `-- name: AssignWorkerToTask :one
 UPDATE task_execution
 SET task_assigned = TRUE,
-task_worker = $1
+    task_worker = $1
 WHERE id = $2
+  AND task_assigned = FALSE
 RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
 `
 
@@ -177,41 +178,24 @@ func (q *Queries) GetTasksExecution(ctx context.Context, id pgtype.UUID) ([]Task
 }
 
 const getUnassignedTasks = `-- name: GetUnassignedTasks :one
-SELECT a.id, a.task_base, a.task_worker, a.task_assigned, a.task_completed, a.task_input, a.task_output, a.workflow_id, task_definition_depends.id, task_id, task_depends_on, b.id, b.task_base, b.task_worker, b.task_assigned, b.task_completed, b.task_input, b.task_output, b.workflow_id FROM task_execution A
-INNER JOIN task_definition_depends ON task_definition_depends.id = A.task_base
-INNER JOIN task_execution B ON A.workflow_id = B.workflow_id AND B.task_base = task_definition_depends.task_depends_on
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution A
 WHERE (
     A.task_assigned = FALSE AND
     A.task_completed = FALSE AND
-    B.task_completed = TRUE
+    NOT EXISTS (
+        SELECT 1 FROM task_definition_depends d
+        LEFT JOIN task_execution dep
+            ON dep.workflow_id = A.workflow_id
+            AND dep.task_base = d.task_depends_on
+        WHERE d.task_id = A.task_base
+          AND (dep.task_completed = FALSE OR dep.id IS NULL)
+    )
 ) LIMIT 1
 `
 
-type GetUnassignedTasksRow struct {
-	ID              pgtype.UUID
-	TaskBase        pgtype.UUID
-	TaskWorker      pgtype.UUID
-	TaskAssigned    bool
-	TaskCompleted   bool
-	TaskInput       pgtype.UUID
-	TaskOutput      pgtype.UUID
-	WorkflowID      pgtype.UUID
-	ID_2            pgtype.UUID
-	TaskID          pgtype.UUID
-	TaskDependsOn   pgtype.UUID
-	ID_3            pgtype.UUID
-	TaskBase_2      pgtype.UUID
-	TaskWorker_2    pgtype.UUID
-	TaskAssigned_2  bool
-	TaskCompleted_2 bool
-	TaskInput_2     pgtype.UUID
-	TaskOutput_2    pgtype.UUID
-	WorkflowID_2    pgtype.UUID
-}
-
-func (q *Queries) GetUnassignedTasks(ctx context.Context) (GetUnassignedTasksRow, error) {
+func (q *Queries) GetUnassignedTasks(ctx context.Context) (TaskExecution, error) {
 	row := q.db.QueryRow(ctx, getUnassignedTasks)
-	var i GetUnassignedTasksRow
+	var i TaskExecution
 	err := row.Scan(
 		&i.ID,
 		&i.TaskBase,
@@ -221,17 +205,6 @@ func (q *Queries) GetUnassignedTasks(ctx context.Context) (GetUnassignedTasksRow
 		&i.TaskInput,
 		&i.TaskOutput,
 		&i.WorkflowID,
-		&i.ID_2,
-		&i.TaskID,
-		&i.TaskDependsOn,
-		&i.ID_3,
-		&i.TaskBase_2,
-		&i.TaskWorker_2,
-		&i.TaskAssigned_2,
-		&i.TaskCompleted_2,
-		&i.TaskInput_2,
-		&i.TaskOutput_2,
-		&i.WorkflowID_2,
 	)
 	return i, err
 }
@@ -295,6 +268,7 @@ const markWorkerUnavailable = `-- name: MarkWorkerUnavailable :one
 UPDATE worker
 SET worker_available = FALSE
 WHERE id = $1
+  AND worker_available = TRUE
 RETURNING id, worker_host, worker_port, worker_available
 `
 

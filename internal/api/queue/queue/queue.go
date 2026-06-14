@@ -16,17 +16,12 @@ import (
 
 func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var task models.TaskDefinition
-		err := json.NewDecoder(r.Body).Decode(&task)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse task", http.StatusBadRequest)
+		task, err := utils.ReadRequest[models.TaskDefinition](w, r)
+		if utils.HasError(w, r, "could not read request", err) {
 			return
 		}
 		taskUUID, err := utils.StringToUUID(string(task.ID))
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse ID", http.StatusBadRequest)
+		if utils.HasError(w, r, "could not parse ID", err) {
 			return
 		}
 		taskInputUUID, err := utils.StringToUUID(string(task.TaskInput))
@@ -38,24 +33,18 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 			log.Printf("No task output: %v\n", err.Error())
 		}
 		workflowUUID, err := utils.StringToUUID(string(task.WorkflowID))
-		if err != nil {
-			log.Printf("could not parse workflow ID: %v\n", err.Error())
-			http.Error(w, "Could not parse workflow ID", http.StatusBadRequest)
+		if utils.HasError(w, r, "could not parse workflow ID", err) {
 			return
 		}
 		var workflowExecutionID pgtype.UUID
 		if task.WorkflowExecutionID != "" {
 			workflowExecutionID, err = utils.StringToUUID(string(task.WorkflowExecutionID))
-			if err != nil {
-				log.Printf("could not parse workflow execution ID: %v\n", err.Error())
-				http.Error(w, "Could not parse workflow execution ID", http.StatusBadRequest)
+			if utils.HasError(w, r, "could not parse workflow execution ID", err) {
 				return
 			}
 		} else {
 			workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
-			if err != nil {
-				log.Printf("could not create workflow execution: %v\n", err.Error())
-				http.Error(w, "Could not create workflow execution", http.StatusInternalServerError)
+			if utils.HasError(w, r, "could not create workflow execution", err) {
 				return
 			}
 			workflowExecutionID = workflowExecution.ID

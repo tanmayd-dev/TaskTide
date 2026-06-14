@@ -5,19 +5,5 @@ INSERT INTO task_attempt (
     task_succeeded,
     task_input
 ) VALUES (
-    $1, FALSE, FALSE, $2
+    $1, $2, $3, $4
 ) RETURNING *;
-
--- name: SucceedTask :one
-UPDATE task_attempt SET
-task_completed = TRUE,
-task_succeeded = TRUE
-WHERE id = $1
-RETURNING *;
-
--- name: FailTask :one
-UPDATE task_attempt SET
-task_completed = TRUE,
-task_succeeded = FALSE
-WHERE id = $1
-RETURNING *;

@@ -172,6 +172,41 @@ func (q *Queries) GetWorkflowExecution(ctx context.Context, id pgtype.UUID) (Wor
 	return i, err
 }
 
+const getWorkflowTaskExecutions = `-- name: GetWorkflowTaskExecutions :many
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution WHERE (
+    workflow_id = $1
+)
+`
+
+func (q *Queries) GetWorkflowTaskExecutions(ctx context.Context, workflowID pgtype.UUID) ([]TaskExecution, error) {
+	rows, err := q.db.Query(ctx, getWorkflowTaskExecutions, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TaskExecution
+	for rows.Next() {
+		var i TaskExecution
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskBase,
+			&i.TaskWorker,
+			&i.TaskAssigned,
+			&i.TaskCompleted,
+			&i.TaskInput,
+			&i.TaskOutput,
+			&i.WorkflowID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markTaskComplete = `-- name: MarkTaskComplete :exec
 UPDATE task_execution SET
 task_completed = TRUE,
@@ -183,5 +218,19 @@ WHERE (
 
 func (q *Queries) MarkTaskComplete(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, markTaskComplete, id)
+	return err
+}
+
+const unassignTask = `-- name: UnassignTask :exec
+UPDATE task_execution SET
+task_assigned = FALSE,
+task_worker = NULL
+WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) UnassignTask(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, unassignTask, id)
 	return err
 }

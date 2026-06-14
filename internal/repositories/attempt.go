@@ -2,22 +2,21 @@ package repositories
 
 import (
 	"context"
-	"log"
-	"net/http"
 
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func CreateTaskAttempt(ctx context.Context, completion models.WorkerTaskExecution, w http.ResponseWriter, queries *db.Queries) (error) {
+func CreateTaskAttempt(ctx context.Context, queries *db.Queries, completion models.WorkerTaskExecution) error {
 	taskExecutionUUID, err := utils.StringToUUID(string(completion.ID))
 	if err != nil {
-		log.Printf("%v\n", err.Error())
-		http.Error(w, "Could not parse form", http.StatusBadRequest)
 		return err
 	}
 	taskExecutionDB, err := queries.GetTaskExecution(ctx, taskExecutionUUID)
+	if err != nil {
+		return err
+	}
 	_, err = queries.CreateTaskAttempt(ctx, db.CreateTaskAttemptParams{
 		TaskExecutionBase: taskExecutionUUID,
 		TaskCompleted:     completion.TaskCompleted,
@@ -26,3 +25,4 @@ func CreateTaskAttempt(ctx context.Context, completion models.WorkerTaskExecutio
 	})
 	return err
 }
+

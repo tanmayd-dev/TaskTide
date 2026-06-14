@@ -2,9 +2,9 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/minio/minio-go/v7"
@@ -18,16 +18,18 @@ import (
 func registerWorker(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		worker, err := utils.ReadRequest[models.Worker](w, r)
-		workerDB, err := repositories.AddWorker(ctx, queries, worker)
+		if utils.HasError(w, r, "could not read worker from request", err) {
+			return
+		}
+		workerModel, err := repositories.AddWorker(ctx, queries, worker)
 		if utils.HasError(w, r, "could not add worker", err) {
 			return
 		}
-		workerModel := utils.WorkerModel(workerDB)
 		go queueService.AssignWorker(queries, ctx, minioClient)
 		addedWorkerModel := models.Worker{
-			ID: models.WorkerID(workerModel.ID),
+			ID: workerModel.ID,
 		}
-		json.NewEncoder(w).Encode(addedWorkerModel)
+		utils.WriteJSON(w, http.StatusOK, addedWorkerModel)
 	}
 }
 
@@ -45,7 +47,17 @@ func handleCompletion(queries *db.Queries, ctx context.Context, minioClient *min
 			http.Error(w, "Could not parse form", http.StatusBadRequest)
 			return
 		}
+
+		if taskExecution.TaskWorker != "" {
+			err = repositories.MarkWorkerAvailable(ctx, queries, taskExecution.TaskWorker)
+			if err != nil {
+				log.Printf("could not mark worker available: %v\n", err)
+			}
+		}
+
 		go queueService.AssignWorker(queries, ctx, minioClient)
+
+		w.WriteHeader(http.StatusOK)
 	}
 }
 

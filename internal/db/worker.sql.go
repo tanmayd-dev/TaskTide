@@ -68,6 +68,17 @@ func (q *Queries) AssignWorkerToTask(ctx context.Context, arg AssignWorkerToTask
 	return i, err
 }
 
+const deleteWorker = `-- name: DeleteWorker :exec
+DELETE FROM worker WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) DeleteWorker(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorker, id)
+	return err
+}
+
 const getAvailableWorker = `-- name: GetAvailableWorker :one
 SELECT id, worker_host, worker_port, worker_available FROM worker WHERE (
     worker_available = TRUE

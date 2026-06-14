@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
@@ -26,16 +25,13 @@ func handleCreateWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Cli
 			http.Error(w, "Could not parse workflow", http.StatusBadRequest)
 			return
 		}
-		createdWorkflow, err := queries.CreateWorkflow(ctx, pgtype.Text{
-			String: workflowDef.WorkflowName,
-			Valid:  true,
-		})
+		createdWorkflow, err := repositories.CreateWorkflow(ctx, queries, workflowDef.WorkflowName)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not add workflow to DB", http.StatusBadRequest)
 			return
 		}
-		json.NewEncoder(w).Encode(createdWorkflow)
+		utils.WriteJSON(w, http.StatusOK, createdWorkflow)
 	}
 }
 
@@ -45,58 +41,20 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 		err := json.NewDecoder(r.Body).Decode(&taskDef)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse workflow", http.StatusBadRequest)
+			http.Error(w, "Could not parse task", http.StatusBadRequest)
 			return
 		}
-		workflowUUID, err := utils.StringToUUID(string(taskDef.WorkflowID))
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse workflow id", http.StatusBadRequest)
-			return
-		}
-		var taskInputFile pgtype.UUID
-		var taskInputTask pgtype.UUID
-		if taskDef.TaskInput != "" {
-			taskInputFile, err = utils.StringToUUID(string(taskDef.TaskInput))
-			if err != nil {
-				log.Printf("%v\n", err.Error())
-				http.Error(w, "Could not parse task input file", http.StatusBadRequest)
-				return
-			}
-		}
-		if taskDef.TaskInputTask != "" {
-			taskInputTask, err = utils.StringToUUID(string(taskDef.TaskInputTask))
-			if err != nil {
-				log.Printf("%v\n", err.Error())
-				http.Error(w, "Could not parse task input task", http.StatusBadRequest)
-				return
-			}
-		}
-		createdTask, err := queries.CreateTask(ctx, db.CreateTaskParams{
-			TaskName: pgtype.Text{
-				String: taskDef.TaskName,
-				Valid:  true,
-			},
-			TaskType:      string(taskDef.TaskType),
-			WorkflowID:    workflowUUID,
-			TaskInputFile: taskInputFile,
-			TaskInputTask: taskInputTask,
-		})
+		createdTask, err := repositories.CreateTask(ctx, queries, taskDef)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not add task to db", http.StatusBadRequest)
 			return
 		}
-		err = json.NewEncoder(w).Encode(createdTask)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not return task", http.StatusBadRequest)
-			return
-		}
+		utils.WriteJSON(w, http.StatusOK, createdTask)
 	}
 }
 
-func addTaskDependency(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
+func addTaskDependency(queries *db.Queries, ctx context.Context, _ *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request models.TaskDependency
 		err := json.NewDecoder(r.Body).Decode(&request)
@@ -105,12 +63,13 @@ func addTaskDependency(queries *db.Queries, ctx context.Context, minioClient *mi
 			http.Error(w, "Could not parse request", http.StatusBadRequest)
 			return
 		}
-		err = repositories.AddTaskDependency(queries, ctx, minioClient, request.ID, request.Dependencies, request.InputFromDependency)
+		err = repositories.AddTaskDependency(ctx, queries, request.ID, request.Dependencies, request.InputFromDependency)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not Add task dependency", http.StatusBadRequest)
 			return
 		}
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -123,59 +82,24 @@ func handleGetWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client
 			http.Error(w, "Could not parse workflow", http.StatusBadRequest)
 			return
 		}
-		workflowUUID, err := utils.StringToUUID(string(requestWorkflow.ID))
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse workflow id", http.StatusBadRequest)
-			return
-		}
-		workflow, err := queries.GetWorkflow(ctx, workflowUUID)
+		workflow, err := repositories.GetWorkflow(ctx, queries, requestWorkflow.ID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not parse ID", http.StatusBadRequest)
 			return
 		}
-		DBTasks, err := queries.GetWorkflowTasks(ctx, workflowUUID)
+		tasks, err := repositories.GetWorkflowTasks(ctx, queries, requestWorkflow.ID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not get tasks", http.StatusBadRequest)
 			return
 		}
-		var tasks []models.TaskDefinition
-		for _, task := range DBTasks {
-			taskInput := models.InputFileID("")
-			if task.TaskInputFile.Valid {
-				taskInput = models.InputFileID(task.TaskInputFile.String())
-			}
-			taskInputTask := models.TaskDefinitionID("")
-			if task.TaskInputTask.Valid {
-				taskInputTask = models.TaskDefinitionID(task.TaskInputTask.String())
-			}
-			taskOutput := models.InputFileID("")
-			if task.TaskOutput.Valid {
-				taskOutput = models.InputFileID(task.TaskOutput.String())
-			}
-			tasks = append(tasks, models.TaskDefinition{
-				ID:            models.TaskDefinitionID(task.ID.String()),
-				TaskType:      models.TaskType(task.TaskType),
-				TaskName:      task.TaskName.String,
-				WorkflowID:    models.WorkflowDefinitionID(task.WorkflowID.String()),
-				TaskInput:     taskInput,
-				TaskInputTask: taskInputTask,
-				TaskOutput:    taskOutput,
-			})
-		}
 		fatWorkflow := models.FatWorkflowDefinition{
-			ID:            models.WorkflowDefinitionID(workflow.ID.String()),
-			WorkflowName:  workflow.WorkflowName.String,
+			ID:            workflow.ID,
+			WorkflowName:  workflow.WorkflowName,
 			WorkflowTasks: tasks,
 		}
-		err = json.NewEncoder(w).Encode(fatWorkflow)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not return workflow", http.StatusBadRequest)
-			return
-		}
+		utils.WriteJSON(w, http.StatusOK, fatWorkflow)
 	}
 }
 
@@ -200,8 +124,7 @@ func handleStart(queries *db.Queries, ctx context.Context, minioClient *minio.Cl
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(models.WorkflowExecution{ID: executionID})
+		utils.WriteJSON(w, http.StatusOK, models.WorkflowExecution{ID: executionID})
 	}
 }
 

@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
+	"github.com/tanmayd-dev/TaskTide/internal/repositories"
 	"github.com/tanmayd-dev/TaskTide/internal/service/queueService"
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
@@ -20,41 +20,17 @@ func enqueue(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 		if utils.HasError(w, r, "could not read request", err) {
 			return
 		}
-		taskUUID, err := utils.StringToUUID(string(task.ID))
-		if utils.HasError(w, r, "could not parse ID", err) {
-			return
-		}
-		taskInputUUID, err := utils.StringToUUID(string(task.TaskInput))
-		if err != nil {
-			log.Printf("No task input: %v\n", err.Error())
-		}
-		taskOutputUUID, err := utils.StringToUUID(string(task.TaskOutput))
-		if err != nil {
-			log.Printf("No task output: %v\n", err.Error())
-		}
-		workflowUUID, err := utils.StringToUUID(string(task.WorkflowID))
-		if utils.HasError(w, r, "could not parse workflow ID", err) {
-			return
-		}
-		var workflowExecutionID pgtype.UUID
+		var workflowExecutionID models.WorkflowExecutionID
 		if task.WorkflowExecutionID != "" {
-			workflowExecutionID, err = utils.StringToUUID(string(task.WorkflowExecutionID))
-			if utils.HasError(w, r, "could not parse workflow execution ID", err) {
-				return
-			}
+			workflowExecutionID = task.WorkflowExecutionID
 		} else {
-			workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
+			we, err := repositories.CreateWorkflowExecution(ctx, queries, task.WorkflowID)
 			if utils.HasError(w, r, "could not create workflow execution", err) {
 				return
 			}
-			workflowExecutionID = workflowExecution.ID
+			workflowExecutionID = we.ID
 		}
-		_, err = queries.CreateTaskExecution(ctx, db.CreateTaskExecutionParams{
-			TaskBase:   taskUUID,
-			TaskInput:  taskInputUUID,
-			TaskOutput: taskOutputUUID,
-			WorkflowID: workflowExecutionID,
-		})
+		_, err = repositories.CreateTaskExecution(ctx, queries, task.ID, task.TaskInput, task.TaskOutput, workflowExecutionID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not create task Execution", http.StatusBadRequest)

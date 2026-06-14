@@ -1,12 +1,3 @@
--- name: AddWorker :one
-INSERT INTO worker (
-    worker_host,
-    worker_port,
-    worker_available
-) VALUES (
-    $1, $2, TRUE
-) RETURNING *;
-
 -- name: CreateWorkflowExecution :one
 INSERT INTO workflow_execution (
     workflow_base
@@ -32,25 +23,10 @@ INSERT INTO task_execution (
     $1, $2, FALSE, FALSE, $3, $4, $5
 ) RETURNING *;
 
--- name: MarkWorkerUnavailable :one
-UPDATE worker
-SET worker_available = FALSE
-WHERE id = $1
-  AND worker_available = TRUE
-RETURNING *;
-
--- name: AssignWorkerToTask :one
-UPDATE task_execution
-SET task_assigned = TRUE,
-    task_worker = $1
-WHERE id = $2
-  AND task_assigned = FALSE
-RETURNING *;
-
--- name: GetAvailableWorker :one
-SELECT * FROM worker WHERE (
-    worker_available = TRUE
-) LIMIT 1;
+-- name: GetTaskExecution :one
+SELECT * FROM task_execution
+WHERE id =  $1
+LIMIT 1;
 
 -- name: GetUnassignedTasks :one
 SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution A
@@ -76,29 +52,6 @@ SELECT * FROM task_execution WHERE (
 UPDATE task_execution SET
 task_completed = TRUE,
 task_assigned = FALSE
-WHERE (
-    id = $1
-);
-
--- name: MarkWorkerAvailable :exec
-UPDATE worker SET
-worker_available = TRUE
-WHERE (
-    id = $1
-);
-
--- name: MarkTaskAttemptSuccess :exec
-UPDATE task_attempt SET
-task_completed = TRUE,
-task_succeeded = TRUE
-WHERE (
-    id = $1
-);
-
--- name: MarkTaskAttemptFailure :exec
-UPDATE task_attempt SET
-task_completed = TRUE,
-task_succeeded = FALSE
 WHERE (
     id = $1
 );

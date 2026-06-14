@@ -7,6 +7,7 @@
         "jackc",
         "joho",
         "ossp",
+        "pgconn",
         "pgtype",
         "pgxpool",
         "sqlc",

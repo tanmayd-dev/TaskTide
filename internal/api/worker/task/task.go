@@ -2,32 +2,27 @@ package task
 
 import (
 	"context"
-	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/service/workerService"
+	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func runTask(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workerID models.WorkerID) func(http.ResponseWriter, *http.Request) {
+func runTask(queries *db.Queries, ctx context.Context, workerID models.WorkerID) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var task models.TaskExecution
-		err := json.NewDecoder(r.Body).Decode(&task)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse form", http.StatusBadRequest)
+		workerTaskExecution, err := utils.ReadRequest[models.WorkerTaskExecution](w, r)
+		if utils.HasError(w, r, "could not read request", err) {
 			return
 		}
-		go workerService.Execute(queries, ctx, minioClient, task, workerID)
+		go workerService.Execute(workerTaskExecution)
 	}
 }
 
-func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workerID models.WorkerID) func(chi.Router) {
+func Router(queries *db.Queries, ctx context.Context, workerID models.WorkerID) func(chi.Router) {
 	return func(r chi.Router) {
-		r.Post("/", runTask(queries, ctx, minioClient, workerID))
+		r.Post("/", runTask(queries, ctx, workerID))
 	}
 }

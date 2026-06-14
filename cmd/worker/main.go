@@ -30,10 +30,19 @@ func main() {
 	address := listener.Addr().(*net.TCPAddr)
 
 	// Register self
-	err = workerService.RegisterSelf(address.Port)
+	workerHost := os.Getenv("WORKER_HOST")
+	if workerHost == "" {
+		var err error
+		workerHost, err = os.Hostname()
+		if err != nil {
+			workerHost = "localhost"
+		}
+	}
+	err = workerService.RegisterSelf(workerHost, address.Port)
 	if err != nil {
 		log.Fatalf("%v\n", err.Error())
 	}
+
 
 	// Create Router
 	router := chi.NewRouter()

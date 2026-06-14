@@ -13,52 +13,42 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/repositories"
-	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
 func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workflowID models.WorkflowDefinitionID) (models.WorkflowExecutionID, error) {
-	workflowUUID, err := utils.StringToUUID(string(workflowID))
+	workflow, err := repositories.GetWorkflow(ctx, queries, workflowID)
 	if err != nil {
 		return "", err
 	}
-	workflow, err := queries.GetWorkflow(ctx, workflowUUID)
+	workflowInput := workflow.WorkflowInput
+
+	workflowExecution, err := repositories.CreateWorkflowExecution(ctx, queries, workflowID)
 	if err != nil {
 		return "", err
 	}
-	workflowInput := models.InputFileID("")
-	if workflow.WorkflowInput.Valid {
-		workflowInput = models.InputFileID(workflow.WorkflowInput.String())
-	}
-	workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
-	if err != nil {
-		return "", err
-	}
-	taskDBs, err := queries.GetWorkflowTasks(ctx, workflowUUID)
+	taskModels, err := repositories.GetWorkflowTasks(ctx, queries, workflowID)
 	if err != nil {
 		return "", err
 	}
 	dependencies := make(map[models.TaskDefinitionID]map[models.TaskDefinitionID]struct{})
 	dependents := make(map[models.TaskDefinitionID][]models.TaskDefinitionID)
 	taskIDToModel := make(map[models.TaskDefinitionID]models.TaskDefinition)
-	for _, taskDB := range taskDBs {
-		dependencies[models.TaskDefinitionID(taskDB.ID.String())] = make(map[models.TaskDefinitionID]struct{})
-		dependencyTaskDBs, err := queries.GetTaskDependencies(ctx, taskDB.ID)
+	for _, taskModel := range taskModels {
+		dependencies[taskModel.ID] = make(map[models.TaskDefinitionID]struct{})
+		dependencyTaskDBs, err := repositories.GetTaskDependencies(ctx, queries, taskModel.ID)
 		if err != nil {
 			return "", err
 		}
-		taskModel := utils.TaskDefinitionModel(taskDB)
-		taskModel.WorkflowExecutionID = models.WorkflowExecutionID(workflowExecution.ID.String())
-		for _, dependencyTaskDB := range dependencyTaskDBs {
-			dependencyModel := models.TaskDefinitionID(dependencyTaskDB.TaskDependsOn.String())
-			dependencies[models.TaskDefinitionID(taskDB.ID.String())][dependencyModel] = struct{}{}
-			dependents[dependencyModel] = append(dependents[dependencyModel], models.TaskDefinitionID(taskDB.ID.String()))
+		taskModel.WorkflowExecutionID = workflowExecution.ID
+		for _, dependencyModel := range dependencyTaskDBs {
+			dependencies[taskModel.ID][dependencyModel] = struct{}{}
+			dependents[dependencyModel] = append(dependents[dependencyModel], taskModel.ID)
 		}
-		taskID := models.TaskDefinitionID(taskDB.ID.String())
 		if taskModel.TaskInputTask != "" {
-			dependencies[taskID][taskModel.TaskInputTask] = struct{}{}
-			dependents[taskModel.TaskInputTask] = append(dependents[taskModel.TaskInputTask], taskID)
+			dependencies[taskModel.ID][taskModel.TaskInputTask] = struct{}{}
+			dependents[taskModel.TaskInputTask] = append(dependents[taskModel.TaskInputTask], taskModel.ID)
 		}
-		taskIDToModel[taskID] = taskModel
+		taskIDToModel[taskModel.ID] = taskModel
 	}
 	for taskID, task := range taskIDToModel {
 		if task.TaskOutput == "" {
@@ -66,13 +56,9 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 			if err != nil {
 				return "", err
 			}
-			task.TaskOutput = models.InputFileID(outputFile.ID.String())
+			task.TaskOutput = outputFile.ID
 			taskIDToModel[taskID] = task
-			taskUUID, err := utils.StringToUUID(string(taskID))
-			if err != nil {
-				return "", err
-			}
-			err = queries.UpdateTaskOutput(ctx, db.UpdateTaskOutputParams{ID: taskUUID, TaskOutput: outputFile.ID})
+			err = repositories.UpdateTaskOutput(ctx, queries, taskID, outputFile.ID)
 			if err != nil {
 				return "", err
 			}
@@ -93,7 +79,7 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 				if err != nil {
 					return "", err
 				}
-				task.TaskInput = models.InputFileID(inputFile.ID.String())
+				task.TaskInput = inputFile.ID
 			}
 			taskIDToModel[taskID] = task
 		}
@@ -133,5 +119,5 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 			}
 		}
 	}
-	return models.WorkflowExecutionID(workflowExecution.ID.String()), nil
+	return workflowExecution.ID, nil
 }

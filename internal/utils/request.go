@@ -20,3 +20,12 @@ func HasError(w http.ResponseWriter, r *http.Request, resp string, err error) bo
 	http.Error(w, resp, http.StatusBadRequest)
 	return true
 }
+
+func WriteJSON(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Printf("failed to write JSON response: %v\n", err)
+	}
+}
+

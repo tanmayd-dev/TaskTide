@@ -41,7 +41,7 @@ func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 			return
 		}
 
-		json.NewEncoder(w).Encode(minioFile)
+		utils.WriteJSON(w, http.StatusOK, minioFile)
 	}
 }
 
@@ -54,13 +54,7 @@ func getFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 			http.Error(w, "could not parse input", http.StatusBadRequest)
 			return
 		}
-		fileDB, err := utils.InputFileDB(fileModel)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "could not create DB var", http.StatusBadRequest)
-			return
-		}
-		minioFile, info, err := repositories.GetFile(ctx, queries, fileDB, minioClient, os.Getenv("FILES_BUCKET_NAME"))
+		minioFile, info, err := repositories.GetFile(ctx, queries, fileModel.ID, minioClient, os.Getenv("FILES_BUCKET_NAME"))
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "could not get file", http.StatusBadRequest)
@@ -101,6 +95,7 @@ func addFileToWorkflow(queries *db.Queries, ctx context.Context, minioClient *mi
 			http.Error(w, "Could not attach file", http.StatusBadRequest)
 			return
 		}
+		w.WriteHeader(http.StatusOK)
 	}
 }
 

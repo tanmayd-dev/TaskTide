@@ -31,10 +31,10 @@ func ensureBucketExists(ctx context.Context, minioClient *minio.Client, bucketNa
 	return nil
 }
 
-func UploadFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client, bucketName string, contentType string, file io.Reader, fileName string, fileSize int64) (db.InputFile, error) {
+func UploadFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client, bucketName string, contentType string, file io.Reader, fileName string, fileSize int64) (models.InputFile, error) {
 	err := ensureBucketExists(ctx, minioClient, bucketName)
 	if err != nil {
-		return db.InputFile{}, err
+		return models.InputFile{}, err
 	}
 
 	minioFile, err := queries.CreateFile(
@@ -43,7 +43,7 @@ func UploadFile(queries *db.Queries, ctx context.Context, minioClient *minio.Cli
 	)
 	if err != nil {
 		log.Printf("%v\n", err.Error())
-		return db.InputFile{}, errors.New("could not create file in database")
+		return models.InputFile{}, errors.New("could not create file in database")
 	}
 
 	_, err = minioClient.PutObject(
@@ -62,25 +62,25 @@ func UploadFile(queries *db.Queries, ctx context.Context, minioClient *minio.Cli
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 		}
-		return db.InputFile{}, errors.New("could not add file to bucket")
+		return models.InputFile{}, errors.New("could not add file to bucket")
 	}
-	return minioFile, nil
+	return utils.InputFileModel(minioFile), nil
 }
 
-func CreateDefaultNullFile(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName string) (db.InputFile, error) {
+func CreateDefaultNullFile(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName string) (models.InputFile, error) {
 	return CreateEmptyFile(ctx, queries, minioClient, bucketName, "default-null-file")
 }
 
-func CreateEmptyFile(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName, fileName string) (db.InputFile, error) {
+func CreateEmptyFile(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName, fileName string) (models.InputFile, error) {
 	err := ensureBucketExists(ctx, minioClient, bucketName)
 	if err != nil {
-		return db.InputFile{}, err
+		return models.InputFile{}, err
 	}
 
 	minioFile, err := queries.CreateFile(ctx, fileName)
 	if err != nil {
 		log.Printf("%v\n", err.Error())
-		return db.InputFile{}, errors.New("could not create file in database")
+		return models.InputFile{}, errors.New("could not create file in database")
 	}
 
 	_, err = minioClient.PutObject(
@@ -99,22 +99,26 @@ func CreateEmptyFile(ctx context.Context, queries *db.Queries, minioClient *mini
 		if deleteErr != nil {
 			log.Printf("%v\n", deleteErr.Error())
 		}
-		return db.InputFile{}, errors.New("could not add file to bucket")
+		return models.InputFile{}, errors.New("could not add file to bucket")
 	}
-	return minioFile, nil
+	return utils.InputFileModel(minioFile), nil
 }
 
-func GetFile(ctx context.Context, queries *db.Queries, file db.InputFile, minioClient *minio.Client, bucketName string) (*minio.Object, minio.ObjectInfo, error) {
+func GetFile(ctx context.Context, queries *db.Queries, fileID models.InputFileID, minioClient *minio.Client, bucketName string) (*minio.Object, minio.ObjectInfo, error) {
 	err := ensureBucketExists(ctx, minioClient, bucketName)
 	if err != nil {
 		return nil, minio.ObjectInfo{}, err
 	}
-	fileData, err := queries.GetFile(ctx, file.ID)
+	fileUUID, err := utils.StringToUUID(string(fileID))
+	if err != nil {
+		return nil, minio.ObjectInfo{}, err
+	}
+	fileData, err := queries.GetFile(ctx, fileUUID)
 	if err != nil {
 		log.Printf("%#v\n", err)
 		return nil, minio.ObjectInfo{}, errors.New("could not get fileData from db")
 	}
-	MinioID := fmt.Sprintf("%v/%v", file.ID, fileData.FileName)
+	MinioID := fmt.Sprintf("%v/%v", fileID, fileData.FileName)
 	minioFile, err := minioClient.GetObject(
 		ctx,
 		bucketName,
@@ -132,6 +136,33 @@ func GetFile(ctx context.Context, queries *db.Queries, file db.InputFile, minioC
 		return nil, minio.ObjectInfo{}, errors.New("could not stat")
 	}
 	return minioFile, info, nil
+}
+
+func UpdateFileContent(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName string, fileID models.InputFileID, content string) error {
+	err := ensureBucketExists(ctx, minioClient, bucketName)
+	if err != nil {
+		return err
+	}
+	fileUUID, err := utils.StringToUUID(string(fileID))
+	if err != nil {
+		return err
+	}
+	fileData, err := queries.GetFile(ctx, fileUUID)
+	if err != nil {
+		return err
+	}
+	MinioID := fmt.Sprintf("%v/%v", fileID, fileData.FileName)
+	_, err = minioClient.PutObject(
+		ctx,
+		bucketName,
+		MinioID,
+		bytes.NewReader([]byte(content)),
+		int64(len(content)),
+		minio.PutObjectOptions{
+			ContentType: "text/plain",
+		},
+	)
+	return err
 }
 
 func AttachFile(queries *db.Queries, ctx context.Context, _ *minio.Client, fileID models.InputFileID, workflowID models.WorkflowDefinitionID) error {

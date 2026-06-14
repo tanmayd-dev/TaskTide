@@ -77,11 +77,27 @@ func WorkflowDefinitionDB(workflowDefinitionDB models.WorkflowDefinition) (db.Wo
 	if err != nil {
 		return db.WorkflowDefinition{}, err
 	}
+	var workflowInput pgtype.UUID
+	if workflowDefinitionDB.WorkflowInput != "" {
+		workflowInput, err = StringToUUID(string(workflowDefinitionDB.WorkflowInput))
+		if err != nil {
+			return db.WorkflowDefinition{}, err
+		}
+	}
+	var workflowOutput pgtype.UUID
+	if workflowDefinitionDB.WorkflowOutput != "" {
+		workflowOutput, err = StringToUUID(string(workflowDefinitionDB.WorkflowOutput))
+		if err != nil {
+			return db.WorkflowDefinition{}, err
+		}
+	}
 	return db.WorkflowDefinition{
 		ID: UUID,
 		WorkflowName: pgtype.Text{
 			String: workflowDefinitionDB.WorkflowName,
 			Valid:  true,
 		},
+		WorkflowInput:  workflowInput,
+		WorkflowOutput: workflowOutput,
 	}, nil
 }

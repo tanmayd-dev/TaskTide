@@ -9,6 +9,11 @@ services:
       - "5432:5432"
     volumes:
       - TaskTide:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   minio:
     image: minio/minio
@@ -20,38 +25,82 @@ services:
       - "9000:9000"
       - "9001:9001"
 
-  # api:
-  #   build: 
-  #     context: .
-  #     args:
-  #       - APP_NAME=api
-  #     dockerfile: DOCKERFILE
-  #   environment:
-  #     API_HOST: ${API_HOST}
-  #     API_PORT: ${API_PORT}
-  #     QUEUE_HOST: ${QUEUE_HOST}
-  #     QUEUE_PORT: ${QUEUE_PORT}
-  #   ports:
-  #     - "${API_PORT}:${API_PORT}"
+  migration:
+    image: golang:1.26.3
+    volumes:
+      - .:/app
+    working_dir: /app
+    environment:
+      - GOOSE_DRIVER=postgres
+      - GOOSE_DBSTRING=postgres://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@postgres:5432/TaskTide?sslmode=disable
+      - GOOSE_MIGRATION_DIR=migrations
+    command: sh -c "go install github.com/pressly/goose/v3/cmd/goose@latest && goose up"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
-  # queue:
-  #   build: 
-  #     context: .
-  #     args:
-  #       - APP_NAME=queue
-  #     dockerfile: DOCKERFILE
-  #   environment:
-  #     QUEUE_HOST: ${QUEUE_HOST}
-  #     QUEUE_PORT: ${QUEUE_PORT}
+  api:
+    build: 
+      context: .
+      args:
+        - APP_NAME=api
+      dockerfile: DOCKERFILE
+    environment:
+      - POSTGRES_DBSTRING=postgres://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@postgres:5432/TaskTide?sslmode=disable
+      - API_HOST=0.0.0.0
+      - API_PORT=${API_PORT}
+      - QUEUE_HOST=queue
+      - QUEUE_PORT=${QUEUE_PORT}
+      - MINIO_HOST=minio
+      - MINIO_PORT=9000
+      - MINIO_USER=${MINIO_USER}
+      - MINIO_PASSWORD=${MINIO_PASSWORD}
+      - FILES_BUCKET_NAME=${FILES_BUCKET_NAME}
+    ports:
+      - "${API_PORT}:${API_PORT}"
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
 
-  # worker:
-  #   build: 
-  #     context: .
-  #     args:
-  #       - APP_NAME=worker
-  #     dockerfile: DOCKERFILE
-  #     QUEUE_HOST: ${QUEUE_HOST}
-  #     QUEUE_PORT: ${QUEUE_PORT}
+  queue:
+    build: 
+      context: .
+      args:
+        - APP_NAME=queue
+      dockerfile: DOCKERFILE
+    environment:
+      - POSTGRES_DBSTRING=postgres://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@postgres:5432/TaskTide?sslmode=disable
+      - QUEUE_HOST=0.0.0.0
+      - QUEUE_PORT=${QUEUE_PORT}
+      - MINIO_HOST=minio
+      - MINIO_PORT=9000
+      - MINIO_USER=${MINIO_USER}
+      - MINIO_PASSWORD=${MINIO_PASSWORD}
+      - FILES_BUCKET_NAME=${FILES_BUCKET_NAME}
+    ports:
+      - "${QUEUE_PORT}:${QUEUE_PORT}"
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+
+  worker:
+    build: 
+      context: .
+      args:
+        - APP_NAME=worker
+      dockerfile: DOCKERFILE
+    environment:
+      - QUEUE_HOST=queue
+      - QUEUE_PORT=${QUEUE_PORT}
+      - WORKER_HOST=
+      - NOOP_TIME=${NOOP_TIME}
+    depends_on:
+      queue:
+        condition: service_started
 
 volumes:
   TaskTide:

@@ -2,31 +2,26 @@ package queue
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/service/queueService"
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter, *http.Request) {
+func enqueue(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var task models.TaskDefinition
-		err := json.NewDecoder(r.Body).Decode(&task)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse task", http.StatusBadRequest)
+		task, err := utils.ReadRequest[models.TaskDefinition](w, r)
+		if utils.HasError(w, r, "could not read request", err) {
 			return
 		}
 		taskUUID, err := utils.StringToUUID(string(task.ID))
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse ID", http.StatusBadRequest)
+		if utils.HasError(w, r, "could not parse ID", err) {
 			return
 		}
 		taskInputUUID, err := utils.StringToUUID(string(task.TaskInput))
@@ -38,24 +33,18 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 			log.Printf("No task output: %v\n", err.Error())
 		}
 		workflowUUID, err := utils.StringToUUID(string(task.WorkflowID))
-		if err != nil {
-			log.Printf("could not parse workflow ID: %v\n", err.Error())
-			http.Error(w, "Could not parse workflow ID", http.StatusBadRequest)
+		if utils.HasError(w, r, "could not parse workflow ID", err) {
 			return
 		}
 		var workflowExecutionID pgtype.UUID
 		if task.WorkflowExecutionID != "" {
 			workflowExecutionID, err = utils.StringToUUID(string(task.WorkflowExecutionID))
-			if err != nil {
-				log.Printf("could not parse workflow execution ID: %v\n", err.Error())
-				http.Error(w, "Could not parse workflow execution ID", http.StatusBadRequest)
+			if utils.HasError(w, r, "could not parse workflow execution ID", err) {
 				return
 			}
 		} else {
 			workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
-			if err != nil {
-				log.Printf("could not create workflow execution: %v\n", err.Error())
-				http.Error(w, "Could not create workflow execution", http.StatusInternalServerError)
+			if utils.HasError(w, r, "could not create workflow execution", err) {
 				return
 			}
 			workflowExecutionID = workflowExecution.ID
@@ -72,21 +61,21 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 			return
 		}
 
-		go queueService.AssignWorker(queries, ctx)
+		go queueService.AssignWorker(queries, ctx, minioClient)
 		w.WriteHeader(http.StatusAccepted)
 	}
 }
 
-func poll(queries *db.Queries, ctx context.Context) func(http.ResponseWriter, *http.Request) {
+func poll(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		go queueService.AssignWorker(queries, ctx)
+		go queueService.AssignWorker(queries, ctx, minioClient)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
-func Router(queries *db.Queries, ctx context.Context) func(chi.Router) {
+func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/", poll(queries, ctx))
-		r.Post("/", enqueue(queries, ctx))
+		r.Get("/", poll(queries, ctx, minioClient))
+		r.Post("/", enqueue(queries, ctx, minioClient))
 	}
 }

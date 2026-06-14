@@ -18,59 +18,24 @@ INSERT INTO task_attempt (
     task_succeeded,
     task_input
 ) VALUES (
-    $1, FALSE, FALSE, $2
+    $1, $2, $3, $4
 ) RETURNING id, task_execution_base, task_completed, task_succeeded, task_input
 `
 
 type CreateTaskAttemptParams struct {
 	TaskExecutionBase pgtype.UUID
+	TaskCompleted     bool
+	TaskSucceeded     bool
 	TaskInput         pgtype.UUID
 }
 
 func (q *Queries) CreateTaskAttempt(ctx context.Context, arg CreateTaskAttemptParams) (TaskAttempt, error) {
-	row := q.db.QueryRow(ctx, createTaskAttempt, arg.TaskExecutionBase, arg.TaskInput)
-	var i TaskAttempt
-	err := row.Scan(
-		&i.ID,
-		&i.TaskExecutionBase,
-		&i.TaskCompleted,
-		&i.TaskSucceeded,
-		&i.TaskInput,
+	row := q.db.QueryRow(ctx, createTaskAttempt,
+		arg.TaskExecutionBase,
+		arg.TaskCompleted,
+		arg.TaskSucceeded,
+		arg.TaskInput,
 	)
-	return i, err
-}
-
-const failTask = `-- name: FailTask :one
-UPDATE task_attempt SET
-task_completed = TRUE,
-task_succeeded = FALSE
-WHERE id = $1
-RETURNING id, task_execution_base, task_completed, task_succeeded, task_input
-`
-
-func (q *Queries) FailTask(ctx context.Context, id pgtype.UUID) (TaskAttempt, error) {
-	row := q.db.QueryRow(ctx, failTask, id)
-	var i TaskAttempt
-	err := row.Scan(
-		&i.ID,
-		&i.TaskExecutionBase,
-		&i.TaskCompleted,
-		&i.TaskSucceeded,
-		&i.TaskInput,
-	)
-	return i, err
-}
-
-const succeedTask = `-- name: SucceedTask :one
-UPDATE task_attempt SET
-task_completed = TRUE,
-task_succeeded = TRUE
-WHERE id = $1
-RETURNING id, task_execution_base, task_completed, task_succeeded, task_input
-`
-
-func (q *Queries) SucceedTask(ctx context.Context, id pgtype.UUID) (TaskAttempt, error) {
-	row := q.db.QueryRow(ctx, succeedTask, id)
 	var i TaskAttempt
 	err := row.Scan(
 		&i.ID,

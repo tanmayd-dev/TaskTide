@@ -7,11 +7,13 @@
         "jackc",
         "joho",
         "ossp",
+        "pgconn",
         "pgtype",
         "pgxpool",
         "sqlc",
         "tanmayd",
         "testutil",
         "uuid"
-    ]
+    ],
+    "cSpell.enabled": true
 }

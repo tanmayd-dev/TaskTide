@@ -78,6 +78,16 @@ type TaskExecution struct {
 	WorkflowID    WorkflowExecutionID `json:"workflow_id,omitempty"`
 }
 
+type WorkerTaskExecution struct {
+	ID            TaskExecutionID `json:"id,omitempty"`
+	TaskBase      TaskDefinition  `json:"task_base,omitempty"`
+	TaskWorker    WorkerID        `json:"task_worker,omitempty"`
+	TaskCompleted bool            `json:"task_completed,omitempty"`
+	TaskSucceeded bool            `json:"task_succeeded,omitempty"`
+	TaskInput     string          `json:"task_input,omitempty"`
+	TaskOutput    string          `json:"task_output,omitempty"`
+}
+
 type Worker struct {
 	ID              WorkerID `json:"id,omitempty"`
 	WorkerHost      string   `json:"worker_host,omitempty"`
@@ -113,4 +123,5 @@ type TaskAttempt struct {
 	TaskCompleted     bool
 	TaskSucceeded     bool
 	TaskInput         InputFileID
+	TaskOutput        InputFileID
 }

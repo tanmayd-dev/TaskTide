@@ -128,6 +128,28 @@ func handleStart(queries *db.Queries, ctx context.Context, minioClient *minio.Cl
 	}
 }
 
+func handleGetWorkflowStatus(queries *db.Queries, ctx context.Context, _ *minio.Client) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var requestExecution models.WorkflowExecution
+		err := json.NewDecoder(r.Body).Decode(&requestExecution)
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			http.Error(w, "Could not parse workflow execution", http.StatusBadRequest)
+			return
+		}
+		tasks, err := repositories.GetWorkflowTaskExecutions(ctx, queries, requestExecution.ID)
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			http.Error(w, "Could not get task executions", http.StatusBadRequest)
+			return
+		}
+		if tasks == nil {
+			tasks = []models.TaskExecution{}
+		}
+		utils.WriteJSON(w, http.StatusOK, tasks)
+	}
+}
+
 func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Get("/", handleGetWorkflow(queries, ctx, minioClient))
@@ -135,5 +157,6 @@ func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client)
 		router.Post("/create", handleCreateWorkflow(queries, ctx, minioClient))
 		router.Post("/add", handleAddTask(queries, ctx, minioClient))
 		router.Post("/dependency", addTaskDependency(queries, ctx, minioClient))
+		router.Post("/status", handleGetWorkflowStatus(queries, ctx, minioClient))
 	}
 }

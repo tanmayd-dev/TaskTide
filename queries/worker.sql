@@ -33,3 +33,9 @@ worker_available = TRUE
 WHERE (
     id = $1
 );
+
+-- name: DeleteWorker :exec
+DELETE FROM worker WHERE (
+    id = $1
+);
+

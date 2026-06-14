@@ -6,13 +6,16 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/consts"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
+	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/repositories"
+	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
 func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
@@ -44,17 +47,23 @@ func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 
 func getFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var file db.InputFile
-		err := json.NewDecoder(r.Body).Decode(&file)
+		var fileModel models.InputFile
+		err := json.NewDecoder(r.Body).Decode(&fileModel)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse input", http.StatusBadRequest)
+			http.Error(w, "could not parse input", http.StatusBadRequest)
 			return
 		}
-		minioFile, info, err := repositories.GetFile(ctx, queries, file, minioClient, "files")
+		fileDB, err := utils.InputFileDB(fileModel)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not get file", http.StatusBadRequest)
+			http.Error(w, "could not create DB var", http.StatusBadRequest)
+			return
+		}
+		minioFile, info, err := repositories.GetFile(ctx, queries, fileDB, minioClient, os.Getenv("FILES_BUCKET_NAME"))
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			http.Error(w, "could not get file", http.StatusBadRequest)
 			return
 		}
 		defer minioFile.Close()
@@ -77,9 +86,28 @@ func getFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 	}
 }
 
+func addFileToWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var fileModel models.InputFile
+		err := json.NewDecoder(r.Body).Decode(&fileModel)
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			http.Error(w, "could not parse input", http.StatusBadRequest)
+			return
+		}
+		err = repositories.AttachFile(queries, ctx, minioClient, fileModel.ID, fileModel.WorkflowID)
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			http.Error(w, "Could not attach file", http.StatusBadRequest)
+			return
+		}
+	}
+}
+
 func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/", addFile(queries, ctx, minioClient))
 		r.Get("/", getFile(queries, ctx, minioClient))
+		r.Post("/workflow", addFileToWorkflow(queries, ctx, minioClient))
 	}
 }

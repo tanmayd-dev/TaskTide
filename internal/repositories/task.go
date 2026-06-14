@@ -11,7 +11,7 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func AddTaskDependency(queries *db.Queries, ctx context.Context, minioClient *minio.Client, task models.TaskDefinitionID, dependencies []models.TaskDefinitionID) error {
+func AddTaskDependency(queries *db.Queries, ctx context.Context, minioClient *minio.Client, task models.TaskDefinitionID, dependencies []models.TaskDefinitionID, inputFromDependency models.TaskDefinitionID) error {
 	taskUUID, err := utils.StringToUUID(string(task))
 	if err != nil {
 		return errors.New("could not parse task")
@@ -25,6 +25,23 @@ func AddTaskDependency(queries *db.Queries, ctx context.Context, minioClient *mi
 			TaskID:        taskUUID,
 			TaskDependsOn: dependencyUUID,
 		})
+	}
+	if inputFromDependency != "" {
+		inputDependencyUUID, err := utils.StringToUUID(string(inputFromDependency))
+		if err != nil {
+			return fmt.Errorf("could not parse input dependency: %#v", inputFromDependency)
+		}
+		queries.AddTaskDependency(ctx, db.AddTaskDependencyParams{
+			TaskID:        taskUUID,
+			TaskDependsOn: inputDependencyUUID,
+		})
+		err = queries.UpdateTaskInputTask(ctx, db.UpdateTaskInputTaskParams{
+			ID:            taskUUID,
+			TaskInputTask: inputDependencyUUID,
+		})
+		if err != nil {
+			return fmt.Errorf("could not update task input task: %w", err)
+		}
 	}
 	return nil
 }

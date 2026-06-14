@@ -36,54 +36,48 @@ const createTask = `-- name: CreateTask :one
 INSERT INTO task_definition (
     task_name,
     task_type,
-    workflow_id
+    workflow_id,
+    task_input_file,
+    task_input_task,
+    task_output
 ) VALUES (
-    $1, $2, $3
-) RETURNING id, task_type, task_name, workflow_id
+    $1, $2, $3, $4, $5, $6
+) RETURNING id, task_type, task_name, workflow_id, task_input_file, task_input_task, task_output
 `
 
 type CreateTaskParams struct {
-	TaskName   pgtype.Text
-	TaskType   string
-	WorkflowID pgtype.UUID
+	TaskName      pgtype.Text
+	TaskType      string
+	WorkflowID    pgtype.UUID
+	TaskInputFile pgtype.UUID
+	TaskInputTask pgtype.UUID
+	TaskOutput    pgtype.UUID
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (TaskDefinition, error) {
-	row := q.db.QueryRow(ctx, createTask, arg.TaskName, arg.TaskType, arg.WorkflowID)
+	row := q.db.QueryRow(ctx, createTask,
+		arg.TaskName,
+		arg.TaskType,
+		arg.WorkflowID,
+		arg.TaskInputFile,
+		arg.TaskInputTask,
+		arg.TaskOutput,
+	)
 	var i TaskDefinition
 	err := row.Scan(
 		&i.ID,
 		&i.TaskType,
 		&i.TaskName,
 		&i.WorkflowID,
-	)
-	return i, err
-}
-
-const createTaskAttempt = `-- name: CreateTaskAttempt :one
-INSERT INTO task_attempt(
-    task_execution_base,
-    task_completed,
-    task_succeded
-) VALUES (
-    $1, FALSE, FALSE
-) RETURNING id, task_execution_base, task_completed, task_succeded
-`
-
-func (q *Queries) CreateTaskAttempt(ctx context.Context, taskExecutionBase pgtype.UUID) (TaskAttempt, error) {
-	row := q.db.QueryRow(ctx, createTaskAttempt, taskExecutionBase)
-	var i TaskAttempt
-	err := row.Scan(
-		&i.ID,
-		&i.TaskExecutionBase,
-		&i.TaskCompleted,
-		&i.TaskSucceded,
+		&i.TaskInputFile,
+		&i.TaskInputTask,
+		&i.TaskOutput,
 	)
 	return i, err
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, task_type, task_name, workflow_id FROM task_definition WHERE
+SELECT id, task_type, task_name, workflow_id, task_input_file, task_input_task, task_output FROM task_definition WHERE
 id = $1
 LIMIT 1
 `
@@ -96,6 +90,9 @@ func (q *Queries) GetTask(ctx context.Context, id pgtype.UUID) (TaskDefinition, 
 		&i.TaskType,
 		&i.TaskName,
 		&i.WorkflowID,
+		&i.TaskInputFile,
+		&i.TaskInputTask,
+		&i.TaskOutput,
 	)
 	return i, err
 }
@@ -126,7 +123,7 @@ func (q *Queries) GetTaskDependencies(ctx context.Context, taskID pgtype.UUID) (
 }
 
 const getWorkflowTasks = `-- name: GetWorkflowTasks :many
-SELECT id, task_type, task_name, workflow_id FROM task_definition WHERE (
+SELECT id, task_type, task_name, workflow_id, task_input_file, task_input_task, task_output FROM task_definition WHERE (
     workflow_id = $1
 )
 `
@@ -145,6 +142,9 @@ func (q *Queries) GetWorkflowTasks(ctx context.Context, workflowID pgtype.UUID) 
 			&i.TaskType,
 			&i.TaskName,
 			&i.WorkflowID,
+			&i.TaskInputFile,
+			&i.TaskInputTask,
+			&i.TaskOutput,
 		); err != nil {
 			return nil, err
 		}
@@ -154,4 +154,21 @@ func (q *Queries) GetWorkflowTasks(ctx context.Context, workflowID pgtype.UUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTaskInputTask = `-- name: UpdateTaskInputTask :exec
+UPDATE task_definition SET
+task_input_task = $2
+WHERE id = $1
+RETURNING id, task_type, task_name, workflow_id, task_input_file, task_input_task, task_output
+`
+
+type UpdateTaskInputTaskParams struct {
+	ID            pgtype.UUID
+	TaskInputTask pgtype.UUID
+}
+
+func (q *Queries) UpdateTaskInputTask(ctx context.Context, arg UpdateTaskInputTaskParams) error {
+	_, err := q.db.Exec(ctx, updateTaskInputTask, arg.ID, arg.TaskInputTask)
+	return err
 }

@@ -1,0 +1,2 @@
+Nested sample note file.
+This file exists in tmp/subdir for hierarchical sample content.

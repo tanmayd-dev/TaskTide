@@ -12,17 +12,30 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
+	"github.com/tanmayd-dev/TaskTide/internal/repositories"
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, workflowID models.WorkflowDefinitionID) error {
+func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workflowID models.WorkflowDefinitionID) (models.WorkflowExecutionID, error) {
 	workflowUUID, err := utils.StringToUUID(string(workflowID))
 	if err != nil {
-		return err
+		return "", err
+	}
+	workflow, err := queries.GetWorkflow(ctx, workflowUUID)
+	if err != nil {
+		return "", err
+	}
+	workflowInput := models.InputFileID("")
+	if workflow.WorkflowInput.Valid {
+		workflowInput = models.InputFileID(workflow.WorkflowInput.String())
+	}
+	workflowExecution, err := queries.CreateWorkflowExecution(ctx, workflowUUID)
+	if err != nil {
+		return "", err
 	}
 	taskDBs, err := queries.GetWorkflowTasks(ctx, workflowUUID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	dependencies := make(map[models.TaskDefinitionID]map[models.TaskDefinitionID]struct{})
 	dependents := make(map[models.TaskDefinitionID][]models.TaskDefinitionID)
@@ -31,15 +44,59 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 		dependencies[models.TaskDefinitionID(taskDB.ID.String())] = make(map[models.TaskDefinitionID]struct{})
 		dependencyTaskDBs, err := queries.GetTaskDependencies(ctx, taskDB.ID)
 		if err != nil {
-			return err
+			return "", err
 		}
-		taskModel := models.TaskDefinitionID(taskDB.ID.String())
+		taskModel := utils.TaskDefinitionModel(taskDB)
+		taskModel.WorkflowExecutionID = models.WorkflowExecutionID(workflowExecution.ID.String())
 		for _, dependencyTaskDB := range dependencyTaskDBs {
 			dependencyModel := models.TaskDefinitionID(dependencyTaskDB.TaskDependsOn.String())
-			dependencies[taskModel][dependencyModel] = struct{}{}
-			dependents[dependencyModel] = append(dependents[dependencyModel], taskModel)
+			dependencies[models.TaskDefinitionID(taskDB.ID.String())][dependencyModel] = struct{}{}
+			dependents[dependencyModel] = append(dependents[dependencyModel], models.TaskDefinitionID(taskDB.ID.String()))
 		}
-		taskIDToModel[taskModel] = utils.TaskDefinitionModel(taskDB)
+		taskID := models.TaskDefinitionID(taskDB.ID.String())
+		if taskModel.TaskInputTask != "" {
+			dependencies[taskID][taskModel.TaskInputTask] = struct{}{}
+			dependents[taskModel.TaskInputTask] = append(dependents[taskModel.TaskInputTask], taskID)
+		}
+		taskIDToModel[taskID] = taskModel
+	}
+	for taskID, task := range taskIDToModel {
+		if task.TaskOutput == "" {
+			outputFile, err := repositories.CreateEmptyFile(ctx, queries, minioClient, os.Getenv("FILES_BUCKET_NAME"), fmt.Sprintf("%s-output", task.TaskName))
+			if err != nil {
+				return "", err
+			}
+			task.TaskOutput = models.InputFileID(outputFile.ID.String())
+			taskIDToModel[taskID] = task
+			taskUUID, err := utils.StringToUUID(string(taskID))
+			if err != nil {
+				return "", err
+			}
+			err = queries.UpdateTaskOutput(ctx, db.UpdateTaskOutputParams{ID: taskUUID, TaskOutput: outputFile.ID})
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+	for taskID, task := range taskIDToModel {
+		if task.TaskInput == "" {
+			if task.TaskInputTask != "" {
+				if dependencyTask, ok := taskIDToModel[task.TaskInputTask]; ok && dependencyTask.TaskOutput != "" {
+					task.TaskInput = dependencyTask.TaskOutput
+				}
+			}
+			if task.TaskInput == "" && workflowInput != "" {
+				task.TaskInput = workflowInput
+			}
+			if task.TaskInput == "" {
+				inputFile, err := repositories.CreateDefaultNullFile(ctx, queries, minioClient, os.Getenv("FILES_BUCKET_NAME"))
+				if err != nil {
+					return "", err
+				}
+				task.TaskInput = models.InputFileID(inputFile.ID.String())
+			}
+			taskIDToModel[taskID] = task
+		}
 	}
 	got := true
 	for got {
@@ -57,7 +114,8 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 			task := taskIDToModel[taskID]
 			jsonTask, err := json.Marshal(task)
 			if err != nil {
-				return err
+				fmt.Printf("%#v", err)
+				return "", err
 			}
 			log.Printf("sending: %#v\n", task)
 			url := fmt.Sprintf("http://%v:%v/", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT"))
@@ -66,10 +124,14 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client, wo
 				"application/json",
 				bytes.NewBuffer(jsonTask),
 			)
-			if (err != nil) || (!(200 <= resp.StatusCode && resp.StatusCode <= 300)) {
-				return err
+			if err != nil {
+				fmt.Printf("%#v", err)
+				return "", err
+			}
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				return "", fmt.Errorf("queue returned status %d", resp.StatusCode)
 			}
 		}
 	}
-	return nil
+	return models.WorkflowExecutionID(workflowExecution.ID.String()), nil
 }

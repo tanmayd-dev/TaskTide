@@ -10,5 +10,10 @@ ALTER TABLE workflow_definition
 ADD COLUMN workflow_input UUID REFERENCES input_file(id),
 ADD COLUMN workflow_output UUID REFERENCES input_file(id);
 
+ALTER TABLE task_definition
+ADD COLUMN task_input_file UUID REFERENCES input_file(id),
+ADD COLUMN task_input_task UUID REFERENCES task_definition(id),
+ADD COLUMN task_output UUID REFERENCES input_file(id);
+
 -- +goose Down
 DROP TABLE input_file CASCADE;

@@ -6,8 +6,12 @@
         "godotenv",
         "jackc",
         "joho",
+        "ossp",
         "pgtype",
         "pgxpool",
-        "tanmayd"
+        "sqlc",
+        "tanmayd",
+        "testutil",
+        "uuid"
     ]
 }

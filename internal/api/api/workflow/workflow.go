@@ -54,13 +54,33 @@ func handleAddTask(queries *db.Queries, ctx context.Context, _ *minio.Client) fu
 			http.Error(w, "Could not parse workflow id", http.StatusBadRequest)
 			return
 		}
+		var taskInputFile pgtype.UUID
+		var taskInputTask pgtype.UUID
+		if taskDef.TaskInput != "" {
+			taskInputFile, err = utils.StringToUUID(string(taskDef.TaskInput))
+			if err != nil {
+				log.Printf("%v\n", err.Error())
+				http.Error(w, "Could not parse task input file", http.StatusBadRequest)
+				return
+			}
+		}
+		if taskDef.TaskInputTask != "" {
+			taskInputTask, err = utils.StringToUUID(string(taskDef.TaskInputTask))
+			if err != nil {
+				log.Printf("%v\n", err.Error())
+				http.Error(w, "Could not parse task input task", http.StatusBadRequest)
+				return
+			}
+		}
 		createdTask, err := queries.CreateTask(ctx, db.CreateTaskParams{
 			TaskName: pgtype.Text{
 				String: taskDef.TaskName,
 				Valid:  true,
 			},
-			TaskType:   string(taskDef.TaskType),
-			WorkflowID: workflowUUID,
+			TaskType:      string(taskDef.TaskType),
+			WorkflowID:    workflowUUID,
+			TaskInputFile: taskInputFile,
+			TaskInputTask: taskInputTask,
 		})
 		if err != nil {
 			log.Printf("%v\n", err.Error())
@@ -85,7 +105,7 @@ func addTaskDependency(queries *db.Queries, ctx context.Context, minioClient *mi
 			http.Error(w, "Could not parse request", http.StatusBadRequest)
 			return
 		}
-		err = repositories.AddTaskDependency(queries, ctx, minioClient, request.ID, request.Dependencies)
+		err = repositories.AddTaskDependency(queries, ctx, minioClient, request.ID, request.Dependencies, request.InputFromDependency)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not Add task dependency", http.StatusBadRequest)
@@ -123,16 +143,31 @@ func handleGetWorkflow(queries *db.Queries, ctx context.Context, _ *minio.Client
 		}
 		var tasks []models.TaskDefinition
 		for _, task := range DBTasks {
+			taskInput := models.InputFileID("")
+			if task.TaskInputFile.Valid {
+				taskInput = models.InputFileID(task.TaskInputFile.String())
+			}
+			taskInputTask := models.TaskDefinitionID("")
+			if task.TaskInputTask.Valid {
+				taskInputTask = models.TaskDefinitionID(task.TaskInputTask.String())
+			}
+			taskOutput := models.InputFileID("")
+			if task.TaskOutput.Valid {
+				taskOutput = models.InputFileID(task.TaskOutput.String())
+			}
 			tasks = append(tasks, models.TaskDefinition{
-				ID:         models.TaskDefinitionID(task.ID.String()),
-				TaskType:   models.TaskType(task.TaskType),
-				TaskName:   task.TaskName.String,
-				WorkflowID: models.WorkflowDefinitionID(task.WorkflowID.String()),
+				ID:            models.TaskDefinitionID(task.ID.String()),
+				TaskType:      models.TaskType(task.TaskType),
+				TaskName:      task.TaskName.String,
+				WorkflowID:    models.WorkflowDefinitionID(task.WorkflowID.String()),
+				TaskInput:     taskInput,
+				TaskInputTask: taskInputTask,
+				TaskOutput:    taskOutput,
 			})
 		}
 		fatWorkflow := models.FatWorkflowDefinition{
 			ID:            models.WorkflowDefinitionID(workflow.ID.String()),
-			WorkflowName:   workflow.WorkflowName.String,
+			WorkflowName:  workflow.WorkflowName.String,
 			WorkflowTasks: tasks,
 		}
 		err = json.NewEncoder(w).Encode(fatWorkflow)
@@ -149,15 +184,24 @@ func handleStart(queries *db.Queries, ctx context.Context, minioClient *minio.Cl
 		var workflowDef models.WorkflowDefinition
 		err := json.NewDecoder(r.Body).Decode(&workflowDef)
 		if err != nil {
-			jsonTask, err := json.Marshal(workflowDef)
-			if err != nil {
+			jsonTask, jsonErr := json.Marshal(workflowDef)
+			if jsonErr != nil {
 				http.Error(w, "Could not parse Task.", http.StatusBadRequest)
 				return
 			}
 			http.Error(w, fmt.Sprintf("Could not parse Task. Format is: %s", jsonTask), http.StatusBadRequest)
 			return
 		}
-		go apiservice.StartWorkflow(queries, ctx, minioClient, workflowDef.ID)
+
+		executionID, err := apiservice.StartWorkflow(queries, ctx, minioClient, workflowDef.ID)
+		if err != nil {
+			log.Printf("failed to start workflow: %v", err)
+			http.Error(w, "Could not start workflow", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(models.WorkflowExecution{ID: executionID})
 	}
 }
 

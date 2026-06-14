@@ -14,3 +14,9 @@ DELETE FROM input_file WHERE (
 SELECT * FROM input_file WHERE (
     id = $1
 );
+
+-- name: AddFileToWorkflow :one
+UPDATE workflow_definition
+SET workflow_input = $1
+WHERE id = $2
+RETURNING *;

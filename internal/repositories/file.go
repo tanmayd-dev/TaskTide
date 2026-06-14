@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
+	"github.com/tanmayd-dev/TaskTide/internal/models"
+	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
 func ensureBucketExists(ctx context.Context, minioClient *minio.Client, bucketName string) error {
@@ -64,6 +67,43 @@ func UploadFile(queries *db.Queries, ctx context.Context, minioClient *minio.Cli
 	return minioFile, nil
 }
 
+func CreateDefaultNullFile(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName string) (db.InputFile, error) {
+	return CreateEmptyFile(ctx, queries, minioClient, bucketName, "default-null-file")
+}
+
+func CreateEmptyFile(ctx context.Context, queries *db.Queries, minioClient *minio.Client, bucketName, fileName string) (db.InputFile, error) {
+	err := ensureBucketExists(ctx, minioClient, bucketName)
+	if err != nil {
+		return db.InputFile{}, err
+	}
+
+	minioFile, err := queries.CreateFile(ctx, fileName)
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		return db.InputFile{}, errors.New("could not create file in database")
+	}
+
+	_, err = minioClient.PutObject(
+		ctx,
+		bucketName,
+		fmt.Sprintf("%v/%v", minioFile.ID, minioFile.FileName),
+		bytes.NewReader([]byte{}),
+		0,
+		minio.PutObjectOptions{
+			ContentType: "application/octet-stream",
+		},
+	)
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		deleteErr := queries.DeleteFile(ctx, minioFile.ID)
+		if deleteErr != nil {
+			log.Printf("%v\n", deleteErr.Error())
+		}
+		return db.InputFile{}, errors.New("could not add file to bucket")
+	}
+	return minioFile, nil
+}
+
 func GetFile(ctx context.Context, queries *db.Queries, file db.InputFile, minioClient *minio.Client, bucketName string) (*minio.Object, minio.ObjectInfo, error) {
 	err := ensureBucketExists(ctx, minioClient, bucketName)
 	if err != nil {
@@ -92,4 +132,26 @@ func GetFile(ctx context.Context, queries *db.Queries, file db.InputFile, minioC
 		return nil, minio.ObjectInfo{}, errors.New("could not stat")
 	}
 	return minioFile, info, nil
+}
+
+func AttachFile(queries *db.Queries, ctx context.Context, _ *minio.Client, fileID models.InputFileID, workflowID models.WorkflowDefinitionID) error {
+	fileUUID, err := utils.StringToUUID(string(fileID))
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		return err
+	}
+	workflowUUID, err := utils.StringToUUID(string(workflowID))
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		return err
+	}
+	_, err = queries.AddFileToWorkflow(ctx, db.AddFileToWorkflowParams{
+		WorkflowInput: fileUUID,
+		ID:            workflowUUID,
+	})
+	if err != nil {
+		log.Printf("%v\n", err.Error())
+		return err
+	}
+	return nil
 }

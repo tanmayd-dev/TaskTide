@@ -41,9 +41,10 @@ func (q *Queries) AddWorker(ctx context.Context, arg AddWorkerParams) (Worker, e
 const assignWorkerToTask = `-- name: AssignWorkerToTask :one
 UPDATE task_execution
 SET task_assigned = TRUE,
-task_worker = $1
+    task_worker = $1
 WHERE id = $2
-RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output
+  AND task_assigned = FALSE
+RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
 `
 
 type AssignWorkerToTaskParams struct {
@@ -62,6 +63,7 @@ func (q *Queries) AssignWorkerToTask(ctx context.Context, arg AssignWorkerToTask
 		&i.TaskCompleted,
 		&i.TaskInput,
 		&i.TaskOutput,
+		&i.WorkflowID,
 	)
 	return i, err
 }
@@ -71,19 +73,31 @@ INSERT INTO task_execution (
     task_base,
     task_worker,
     task_assigned,
-    task_completed
+    task_completed,
+    task_input,
+    task_output,
+    workflow_id
 ) VALUES (
-    $1, $2, FALSE, FALSE
-) RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output
+    $1, $2, FALSE, FALSE, $3, $4, $5
+) RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
 `
 
 type CreateTaskExecutionParams struct {
 	TaskBase   pgtype.UUID
 	TaskWorker pgtype.UUID
+	TaskInput  pgtype.UUID
+	TaskOutput pgtype.UUID
+	WorkflowID pgtype.UUID
 }
 
 func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecutionParams) (TaskExecution, error) {
-	row := q.db.QueryRow(ctx, createTaskExecution, arg.TaskBase, arg.TaskWorker)
+	row := q.db.QueryRow(ctx, createTaskExecution,
+		arg.TaskBase,
+		arg.TaskWorker,
+		arg.TaskInput,
+		arg.TaskOutput,
+		arg.WorkflowID,
+	)
 	var i TaskExecution
 	err := row.Scan(
 		&i.ID,
@@ -93,7 +107,23 @@ func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecuti
 		&i.TaskCompleted,
 		&i.TaskInput,
 		&i.TaskOutput,
+		&i.WorkflowID,
 	)
+	return i, err
+}
+
+const createWorkflowExecution = `-- name: CreateWorkflowExecution :one
+INSERT INTO workflow_execution (
+    workflow_base
+) VALUES (
+    $1
+) RETURNING id, workflow_base
+`
+
+func (q *Queries) CreateWorkflowExecution(ctx context.Context, workflowBase pgtype.UUID) (WorkflowExecution, error) {
+	row := q.db.QueryRow(ctx, createWorkflowExecution, workflowBase)
+	var i WorkflowExecution
+	err := row.Scan(&i.ID, &i.WorkflowBase)
 	return i, err
 }
 
@@ -116,7 +146,7 @@ func (q *Queries) GetAvailableWorker(ctx context.Context) (Worker, error) {
 }
 
 const getTasksExecution = `-- name: GetTasksExecution :many
-SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output FROM task_execution WHERE (
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution WHERE (
     id = $1
 )
 `
@@ -138,6 +168,7 @@ func (q *Queries) GetTasksExecution(ctx context.Context, id pgtype.UUID) ([]Task
 			&i.TaskCompleted,
 			&i.TaskInput,
 			&i.TaskOutput,
+			&i.WorkflowID,
 		); err != nil {
 			return nil, err
 		}
@@ -150,9 +181,18 @@ func (q *Queries) GetTasksExecution(ctx context.Context, id pgtype.UUID) ([]Task
 }
 
 const getUnassignedTasks = `-- name: GetUnassignedTasks :one
-SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output FROM task_execution WHERE (
-    task_assigned = FALSE AND
-    task_completed = FALSE
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution A
+WHERE (
+    A.task_assigned = FALSE AND
+    A.task_completed = FALSE AND
+    NOT EXISTS (
+        SELECT 1 FROM task_definition_depends d
+        LEFT JOIN task_execution dep
+            ON dep.workflow_id = A.workflow_id
+            AND dep.task_base = d.task_depends_on
+        WHERE d.task_id = A.task_base
+          AND (dep.task_completed = FALSE OR dep.id IS NULL)
+    )
 ) LIMIT 1
 `
 
@@ -167,7 +207,21 @@ func (q *Queries) GetUnassignedTasks(ctx context.Context) (TaskExecution, error)
 		&i.TaskCompleted,
 		&i.TaskInput,
 		&i.TaskOutput,
+		&i.WorkflowID,
 	)
+	return i, err
+}
+
+const getWorkflowExecution = `-- name: GetWorkflowExecution :one
+SELECT id, workflow_base FROM workflow_execution WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) GetWorkflowExecution(ctx context.Context, id pgtype.UUID) (WorkflowExecution, error) {
+	row := q.db.QueryRow(ctx, getWorkflowExecution, id)
+	var i WorkflowExecution
+	err := row.Scan(&i.ID, &i.WorkflowBase)
 	return i, err
 }
 
@@ -230,6 +284,7 @@ const markWorkerUnavailable = `-- name: MarkWorkerUnavailable :one
 UPDATE worker
 SET worker_available = FALSE
 WHERE id = $1
+  AND worker_available = TRUE
 RETURNING id, worker_host, worker_port, worker_available
 `
 

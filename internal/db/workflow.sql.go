@@ -48,3 +48,35 @@ func (q *Queries) GetWorkflow(ctx context.Context, id pgtype.UUID) (WorkflowDefi
 	)
 	return i, err
 }
+
+const updateTaskOutput = `-- name: UpdateTaskOutput :exec
+UPDATE task_definition
+SET task_output = $2
+WHERE id = $1
+`
+
+type UpdateTaskOutputParams struct {
+	ID         pgtype.UUID
+	TaskOutput pgtype.UUID
+}
+
+func (q *Queries) UpdateTaskOutput(ctx context.Context, arg UpdateTaskOutputParams) error {
+	_, err := q.db.Exec(ctx, updateTaskOutput, arg.ID, arg.TaskOutput)
+	return err
+}
+
+const updateWorkflowOutput = `-- name: UpdateWorkflowOutput :exec
+UPDATE workflow_definition
+SET workflow_output = $2
+WHERE id = $1
+`
+
+type UpdateWorkflowOutputParams struct {
+	ID             pgtype.UUID
+	WorkflowOutput pgtype.UUID
+}
+
+func (q *Queries) UpdateWorkflowOutput(ctx context.Context, arg UpdateWorkflowOutputParams) error {
+	_, err := q.db.Exec(ctx, updateWorkflowOutput, arg.ID, arg.WorkflowOutput)
+	return err
+}

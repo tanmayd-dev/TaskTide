@@ -1,22 +1,23 @@
--- name: CreateAttempt :one
+-- name: CreateTaskAttempt :one
 INSERT INTO task_attempt (
     task_execution_base,
     task_completed,
-    task_succeded
+    task_succeeded,
+    task_input
 ) VALUES (
-    $1, FALSE, FALSE
+    $1, FALSE, FALSE, $2
 ) RETURNING *;
 
 -- name: SucceedTask :one
 UPDATE task_attempt SET
 task_completed = TRUE,
-task_succeded = TRUE
+task_succeeded = TRUE
 WHERE id = $1
 RETURNING *;
 
 -- name: FailTask :one
 UPDATE task_attempt SET
 task_completed = TRUE,
-task_succeded = FALSE
+task_succeeded = FALSE
 WHERE id = $1
 RETURNING *;

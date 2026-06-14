@@ -11,24 +11,31 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createAttempt = `-- name: CreateAttempt :one
+const createTaskAttempt = `-- name: CreateTaskAttempt :one
 INSERT INTO task_attempt (
     task_execution_base,
     task_completed,
-    task_succeded
+    task_succeeded,
+    task_input
 ) VALUES (
-    $1, FALSE, FALSE
-) RETURNING id, task_execution_base, task_completed, task_succeded
+    $1, FALSE, FALSE, $2
+) RETURNING id, task_execution_base, task_completed, task_succeeded, task_input
 `
 
-func (q *Queries) CreateAttempt(ctx context.Context, taskExecutionBase pgtype.UUID) (TaskAttempt, error) {
-	row := q.db.QueryRow(ctx, createAttempt, taskExecutionBase)
+type CreateTaskAttemptParams struct {
+	TaskExecutionBase pgtype.UUID
+	TaskInput         pgtype.UUID
+}
+
+func (q *Queries) CreateTaskAttempt(ctx context.Context, arg CreateTaskAttemptParams) (TaskAttempt, error) {
+	row := q.db.QueryRow(ctx, createTaskAttempt, arg.TaskExecutionBase, arg.TaskInput)
 	var i TaskAttempt
 	err := row.Scan(
 		&i.ID,
 		&i.TaskExecutionBase,
 		&i.TaskCompleted,
-		&i.TaskSucceded,
+		&i.TaskSucceeded,
+		&i.TaskInput,
 	)
 	return i, err
 }
@@ -36,9 +43,9 @@ func (q *Queries) CreateAttempt(ctx context.Context, taskExecutionBase pgtype.UU
 const failTask = `-- name: FailTask :one
 UPDATE task_attempt SET
 task_completed = TRUE,
-task_succeded = FALSE
+task_succeeded = FALSE
 WHERE id = $1
-RETURNING id, task_execution_base, task_completed, task_succeded
+RETURNING id, task_execution_base, task_completed, task_succeeded, task_input
 `
 
 func (q *Queries) FailTask(ctx context.Context, id pgtype.UUID) (TaskAttempt, error) {
@@ -48,7 +55,8 @@ func (q *Queries) FailTask(ctx context.Context, id pgtype.UUID) (TaskAttempt, er
 		&i.ID,
 		&i.TaskExecutionBase,
 		&i.TaskCompleted,
-		&i.TaskSucceded,
+		&i.TaskSucceeded,
+		&i.TaskInput,
 	)
 	return i, err
 }
@@ -56,9 +64,9 @@ func (q *Queries) FailTask(ctx context.Context, id pgtype.UUID) (TaskAttempt, er
 const succeedTask = `-- name: SucceedTask :one
 UPDATE task_attempt SET
 task_completed = TRUE,
-task_succeded = TRUE
+task_succeeded = TRUE
 WHERE id = $1
-RETURNING id, task_execution_base, task_completed, task_succeded
+RETURNING id, task_execution_base, task_completed, task_succeeded, task_input
 `
 
 func (q *Queries) SucceedTask(ctx context.Context, id pgtype.UUID) (TaskAttempt, error) {
@@ -68,7 +76,8 @@ func (q *Queries) SucceedTask(ctx context.Context, id pgtype.UUID) (TaskAttempt,
 		&i.ID,
 		&i.TaskExecutionBase,
 		&i.TaskCompleted,
-		&i.TaskSucceded,
+		&i.TaskSucceeded,
+		&i.TaskInput,
 	)
 	return i, err
 }

@@ -17,14 +17,18 @@ type TaskAttempt struct {
 	ID                pgtype.UUID
 	TaskExecutionBase pgtype.UUID
 	TaskCompleted     bool
-	TaskSucceded      bool
+	TaskSucceeded     bool
+	TaskInput         pgtype.UUID
 }
 
 type TaskDefinition struct {
-	ID         pgtype.UUID
-	TaskType   string
-	TaskName   pgtype.Text
-	WorkflowID pgtype.UUID
+	ID            pgtype.UUID
+	TaskType      string
+	TaskName      pgtype.Text
+	WorkflowID    pgtype.UUID
+	TaskInputFile pgtype.UUID
+	TaskInputTask pgtype.UUID
+	TaskOutput    pgtype.UUID
 }
 
 type TaskDefinitionDepend struct {
@@ -41,6 +45,7 @@ type TaskExecution struct {
 	TaskCompleted bool
 	TaskInput     pgtype.UUID
 	TaskOutput    pgtype.UUID
+	WorkflowID    pgtype.UUID
 }
 
 type TaskExecutionDepend struct {
@@ -61,4 +66,9 @@ type WorkflowDefinition struct {
 	WorkflowName   pgtype.Text
 	WorkflowInput  pgtype.UUID
 	WorkflowOutput pgtype.UUID
+}
+
+type WorkflowExecution struct {
+	ID           pgtype.UUID
+	WorkflowBase pgtype.UUID
 }

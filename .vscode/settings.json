@@ -14,5 +14,6 @@
         "tanmayd",
         "testutil",
         "uuid"
-    ]
+    ],
+    "cSpell.enabled": true
 }

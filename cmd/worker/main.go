@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
@@ -10,10 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/tanmayd-dev/TaskTide/internal/api/worker"
-	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/service/workerService"
 )
 
@@ -24,16 +21,6 @@ func main() {
 		log.Printf("Could not load .env\n")
 	}
 
-	// Setup PostgreSQL connection
-	ctx := context.Background()
-	conn := os.Getenv("POSTGRES_DBSTRING")
-	pool, err := pgxpool.New(ctx, conn)
-	if err != nil {
-		log.Fatalf("Could not create PostgreSQL pool - %v.", err)
-	}
-	defer pool.Close()
-	queries := db.New(pool)
-
 	// Listen
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -43,7 +30,7 @@ func main() {
 	address := listener.Addr().(*net.TCPAddr)
 
 	// Register self
-	workerID, err := workerService.RegisterSelf(address.Port)
+	err = workerService.RegisterSelf(address.Port)
 	if err != nil {
 		log.Fatalf("%v\n", err.Error())
 	}
@@ -54,7 +41,7 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
-	router.Route("/", worker.Router(queries, ctx, workerID))
+	router.Route("/", worker.Router())
 
 	// Server
 	server := http.Server{

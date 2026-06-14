@@ -24,41 +24,13 @@ func Execute(task models.WorkerTaskExecution) {
 		taskError = errors.New("not implemented")
 		log.Printf("Not implemented for %v\n", task.TaskBase.TaskType)
 	}
-	success := true
-	if taskError != nil {
-		success = false
-	}
-	// else {
-	// 	if models.TaskType(taskBase.TaskType) == models.TaskOUTPUT && task.TaskOutput != "" {
-	// 		workflowExecutionID, err := utils.StringToUUID(string(task.WorkflowID))
-	// 		if err == nil {
-	// 			workflowExecution, err := queries.GetWorkflowExecution(ctx, workflowExecutionID)
-	// 			if err == nil {
-	// 				workflowBaseUUID, err := utils.StringToUUID(workflowExecution.WorkflowBase.String())
-	// 				if err == nil {
-	// 					taskOutputUUID, err := utils.StringToUUID(string(task.TaskOutput))
-	// 					if err == nil {
-	// 						err = queries.UpdateWorkflowOutput(ctx, db.UpdateWorkflowOutputParams{
-	// 							ID:             workflowBaseUUID,
-	// 							WorkflowOutput: taskOutputUUID,
-	// 						})
-	// 						if err != nil {
-	// 							log.Printf("Could not update workflow output: %v\n", err.Error())
-	// 						}
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
+	success := taskError == nil
 	task.TaskCompleted = true
 	task.TaskSucceeded = success
 	taskJSON, err := json.Marshal(task)
 	if err != nil {
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			return
-		}
+		log.Printf("%v\n", err.Error())
+		return
 	}
 	_, err = http.Post(
 		fmt.Sprintf("http://%v:%v/worker/completion", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT")),

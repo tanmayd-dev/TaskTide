@@ -12,8 +12,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/tanmayd-dev/TaskTide/internal/api/worker"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/service/workerService"
@@ -36,21 +34,6 @@ func main() {
 	defer pool.Close()
 	queries := db.New(pool)
 
-	// Setup MinIO connection
-	minioClient, err := minio.New(
-		fmt.Sprintf("%v:%v", os.Getenv("MINIO_HOST"), os.Getenv("MINIO_PORT")),
-		&minio.Options{
-			Creds: credentials.NewStaticV4(
-				os.Getenv("MINIO_USER"),
-				os.Getenv("MINIO_PASSWORD"),
-				"",
-			),
-		},
-	)
-	if err != nil {
-		log.Fatalf("Could not create minioClient: %#v", err)
-	}
-
 	// Listen
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -71,7 +54,7 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
-	router.Route("/", worker.Router(queries, ctx, minioClient, workerID))
+	router.Route("/", worker.Router(queries, ctx, workerID))
 
 	// Server
 	server := http.Server{

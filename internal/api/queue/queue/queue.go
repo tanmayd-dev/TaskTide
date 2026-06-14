@@ -2,19 +2,19 @@ package queue
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 	"github.com/tanmayd-dev/TaskTide/internal/service/queueService"
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter, *http.Request) {
+func enqueue(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var task models.TaskDefinition
 		err := json.NewDecoder(r.Body).Decode(&task)
@@ -72,21 +72,21 @@ func enqueue(queries *db.Queries, ctx context.Context) func(http.ResponseWriter,
 			return
 		}
 
-		go queueService.AssignWorker(queries, ctx)
+		go queueService.AssignWorker(queries, ctx, minioClient)
 		w.WriteHeader(http.StatusAccepted)
 	}
 }
 
-func poll(queries *db.Queries, ctx context.Context) func(http.ResponseWriter, *http.Request) {
+func poll(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		go queueService.AssignWorker(queries, ctx)
+		go queueService.AssignWorker(queries, ctx, minioClient)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
-func Router(queries *db.Queries, ctx context.Context) func(chi.Router) {
+func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/", poll(queries, ctx))
-		r.Post("/", enqueue(queries, ctx))
+		r.Get("/", poll(queries, ctx, minioClient))
+		r.Post("/", enqueue(queries, ctx, minioClient))
 	}
 }

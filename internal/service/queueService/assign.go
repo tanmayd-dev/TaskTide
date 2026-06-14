@@ -6,15 +6,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
+	"github.com/tanmayd-dev/TaskTide/internal/repositories"
+	"github.com/tanmayd-dev/TaskTide/internal/utils"
 )
 
-func AssignWorker(queries *db.Queries, ctx context.Context) {
+func AssignWorker(queries *db.Queries, ctx context.Context, minioClient *minio.Client) {
 	worker, err := queries.GetAvailableWorker(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return
@@ -45,13 +50,30 @@ func AssignWorker(queries *db.Queries, ctx context.Context) {
 			log.Printf("%v\n", err.Error())
 			return
 		}
-		assigningTaskModel := models.TaskExecution{
-			ID:            models.TaskExecutionID(assigningTask.ID.String()),
-			TaskBase:      models.TaskDefinitionID(assigningTask.TaskBase.String()),
-			TaskWorker:    models.WorkerID(assigningTask.TaskWorker.String()),
-			TaskAssigned:  assigningTask.TaskAssigned,
-			TaskCompleted: assigningTask.TaskCompleted,
-			TaskInput:     models.InputFileID(assigningTask.TaskInput.String()),
+		object, _, err := repositories.GetFile(ctx, queries, db.InputFile{
+			ID: assigningTask.TaskInput,
+		}, minioClient, os.Getenv("FILES_BUCKET_NAME"))
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			return
+		}
+		content, err := io.ReadAll(object)
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			return
+		}
+		taskBase, err := queries.GetTask(ctx, assigningTask.TaskBase)
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			return
+		}
+		taskBaseModel := utils.TaskDefinitionModel(taskBase)
+		log.Printf("Got Task with input content: %s\n", string(content))
+		assigningTaskModel := models.WorkerTaskExecution{
+			ID:         models.TaskExecutionID(assigningTask.ID.String()),
+			TaskBase:   taskBaseModel,
+			TaskWorker: models.WorkerID(assigningTask.TaskWorker.String()),
+			TaskInput:  string(content),
 		}
 		assignedTaskJSON, err := json.Marshal(assigningTaskModel)
 		if err != nil {

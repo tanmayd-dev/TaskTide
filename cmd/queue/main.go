@@ -11,6 +11,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/tanmayd-dev/TaskTide/internal/api/queue"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 )
@@ -32,6 +34,21 @@ func main() {
 	defer pool.Close()
 	queries := db.New(pool)
 
+	// Setup MinIO connection
+	minioClient, err := minio.New(
+		fmt.Sprintf("%v:%v", os.Getenv("MINIO_HOST"), os.Getenv("MINIO_PORT")),
+		&minio.Options{
+			Creds: credentials.NewStaticV4(
+				os.Getenv("MINIO_USER"),
+				os.Getenv("MINIO_PASSWORD"),
+				"",
+			),
+		},
+	)
+	if err != nil {
+		log.Fatalf("Could not create minioClient: %#v", err)
+	}
+
 	// Setup router
 	router := chi.NewRouter()
 
@@ -39,7 +56,7 @@ func main() {
 	router.Use(middleware.Recoverer)
 
 	router.Route(
-		"/", queue.Router(queries, ctx),
+		"/", queue.Router(queries, ctx, minioClient),
 	)
 
 	server := http.Server{

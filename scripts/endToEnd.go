@@ -377,13 +377,19 @@ func verifyDatabasePersistence(ctx context.Context, conn *pgx.Conn, workflowName
 	if err != nil {
 		log.Fatalf("Database validation failed: could not fetch task executions: %v", err)
 	}
-	defer rows.Close()
-
+	
+	var teIDs []string
 	for rows.Next() {
 		var teID string
 		if err := rows.Scan(&teID); err != nil {
+			rows.Close()
 			log.Fatalf("Database scan failed: %v", err)
 		}
+		teIDs = append(teIDs, teID)
+	}
+	rows.Close()
+
+	for _, teID := range teIDs {
 		var attemptCount int
 		err = conn.QueryRow(ctx, "SELECT count(*) FROM task_attempt WHERE task_execution_base = $1", teID).Scan(&attemptCount)
 		if err != nil {

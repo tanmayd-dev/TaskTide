@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskTide Workflow Designer</title>
+    <!-- Google Fonts for premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="perlin.js" defer></script>
+    <script type="module" src="main.js" defer></script>
+</head>
+<body>
+    <!-- Main Application UI Wrapper -->
+    <div id="app">
+        <!-- Glassmorphic Header / Control Panel -->
+        <header class="glass-panel main-header">
+            <div class="logo">
+                <span class="logo-tide">Task</span><span class="logo-accent">Tide</span>
+                <span class="subtitle">Workflow Engine</span>
+            </div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <label for="workflow-select">Workflow:</label>
+                    <select id="workflow-select" class="glass-select">
+                        <option value="">-- Create or Select Workflow --</option>
+                    </select>
+                </div>
+                
+                <button id="btn-new" class="btn btn-secondary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                    New
+                </button>
+                <button id="btn-save" class="btn btn-primary" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Save Definition
+                </button>
+                <button id="btn-run" class="btn btn-accent" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run Execution
+                </button>
+            </div>
+            
+            <div class="status-indicator">
+                <span class="status-dot"></span>
+                <span id="status-text">Backend Idle</span>
+            </div>
+        </header>
+
+        <!-- Node Designer Workspace -->
+        <main id="workspace">
+            <div id="canvas-container">
+                <div id="canvas-content">
+                    <!-- SVG Overlay for dragging connection lines -->
+                    <svg id="svg-connections">
+                        <defs>
+                            <linearGradient id="wire-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#4f46e5" />
+                                <stop offset="100%" stop-color="#06b6d4" />
+                            </linearGradient>
+                            <linearGradient id="wire-active-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#eab308" />
+                                <stop offset="100%" stop-color="#22c55e" />
+                            </linearGradient>
+                            <filter id="wire-glow" x="-10%" y="-10%" width="120%" height="120%">
+                                <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#6366f1" flood-opacity="0.5" />
+                            </filter>
+                        </defs>
+                        <g id="connections-group"></g>
+                        <path id="temp-wire" d="" fill="none" stroke="url(#wire-gradient)" stroke-width="3" stroke-dasharray="5,5" style="display: none;" />
+                    </svg>
+
+                    <!-- HTML Layer for Node Elements -->
+                    <div id="nodes-container"></div>
+                </div>
+            </div>
+            
+            <!-- Instructions and Help Overlay -->
+            <div class="help-box glass-panel">
+                <h4>Shortcuts</h4>
+                <ul>
+                    <li>Right-click Canvas: Add node</li>
+                    <li>Drag node header: Move node</li>
+                    <li>Drag Port: Connect nodes</li>
+                    <li>Right-click connection: Delete connection</li>
+                    <li>Wheel: Zoom canvas</li>
+                    <li>Hold Space + Drag: Pan canvas</li>
+                </ul>
+            </div>
+        </main>
+        
+        <!-- Context Menu for Creating Nodes -->
+        <div id="context-menu" class="glass-panel context-menu" style="display: none;">
+            <div class="menu-header">Add Task Node</div>
+            <div class="menu-item" data-type="NOOP">NOOP</div>
+            <div class="menu-item" data-type="doc.read">doc.read</div>
+            <div class="menu-item" data-type="doc.check_sensitive">doc.check_sensitive</div>
+            <div class="menu-item" data-type="csv.read">csv.read</div>
+            <div class="menu-item" data-type="csv.validate">csv.validate</div>
+            <div class="menu-item" data-type="csv.aggregate">csv.aggregate</div>
+            <div class="menu-item" data-type="csv.filter">csv.filter</div>
+            <div class="menu-item" data-type="OUTPUT">OUTPUT Node</div>
+        </div>
+        
+        <!-- Workflow Execution Monitor Side Drawer -->
+        <div id="execution-drawer" class="glass-panel drawer" style="display: none;">
+            <div class="drawer-header">
+                <h3>Run Execution Monitor</h3>
+                <button id="btn-close-drawer" class="btn-icon">×</button>
+            </div>
+            <div class="drawer-body">
+                <div class="execution-meta">
+                    <p><strong>Execution ID:</strong></p>
+                    <p id="execution-id-text" class="code-text">N/A</p>
+                    <p><strong>Status:</strong> <span id="execution-status-badge" class="badge">Idle</span></p>
+                </div>
+                <div class="task-list-header">Task Executions</div>
+                <div id="execution-tasks-list" class="task-execution-list">
+                    <div class="empty-state">No execution running</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

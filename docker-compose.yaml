@@ -102,5 +102,15 @@ services:
       queue:
         condition: service_started
 
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      api:
+        condition: service_started
+
 volumes:
   TaskTide:

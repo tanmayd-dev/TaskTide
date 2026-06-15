@@ -194,6 +194,35 @@ func (q *Queries) GetWorkflowTasks(ctx context.Context, workflowID pgtype.UUID) 
 	return items, nil
 }
 
+const listWorkflows = `-- name: ListWorkflows :many
+SELECT id, workflow_name, workflow_input, workflow_output FROM workflow_definition
+`
+
+func (q *Queries) ListWorkflows(ctx context.Context) ([]WorkflowDefinition, error) {
+	rows, err := q.db.Query(ctx, listWorkflows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkflowDefinition
+	for rows.Next() {
+		var i WorkflowDefinition
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowName,
+			&i.WorkflowInput,
+			&i.WorkflowOutput,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateTaskInputTask = `-- name: UpdateTaskInputTask :exec
 UPDATE task_definition SET
 task_input_task = $2

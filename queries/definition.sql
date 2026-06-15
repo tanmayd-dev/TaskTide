@@ -59,3 +59,6 @@ RETURNING *;
 -- name: GetTaskDependencies :many
 SELECT * FROM task_definition_depends
 WHERE task_id = $1;
+
+-- name: ListWorkflows :many
+SELECT * FROM workflow_definition;

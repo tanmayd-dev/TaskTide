@@ -31,6 +31,18 @@ func GetWorkflow(ctx context.Context, queries *db.Queries, id models.WorkflowDef
 	return utils.WorkflowDefinitionModel(wd), nil
 }
 
+func ListWorkflows(ctx context.Context, queries *db.Queries) ([]models.WorkflowDefinition, error) {
+	wds, err := queries.ListWorkflows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var workflows []models.WorkflowDefinition
+	for _, wd := range wds {
+		workflows = append(workflows, utils.WorkflowDefinitionModel(wd))
+	}
+	return workflows, nil
+}
+
 func CreateTask(ctx context.Context, queries *db.Queries, task models.TaskDefinition) (models.TaskDefinition, error) {
 	workflowUUID, err := utils.StringToUUID(string(task.WorkflowID))
 	if err != nil {

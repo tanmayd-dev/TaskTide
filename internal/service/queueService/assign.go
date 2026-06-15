@@ -25,23 +25,23 @@ func AssignWorker(queries *db.Queries, ctx context.Context, minioClient *minio.C
 	assignMutex.Lock()
 	defer assignMutex.Unlock()
 
-	worker, err := repositories.GetAvailableWorker(ctx, queries)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return
-	}
-	if err != nil {
-		log.Printf("%v\n", err.Error())
-		return
-	}
-	task, err := repositories.GetUnassignedTasks(ctx, queries)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return
-	}
-	if err != nil {
-		log.Printf("%v\n", err.Error())
-		return
-	}
 	for {
+		worker, err := repositories.GetAvailableWorker(ctx, queries)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return
+		}
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			return
+		}
+		task, err := repositories.GetUnassignedTasks(ctx, queries)
+		if errors.Is(err, pgx.ErrNoRows) {
+			break
+		}
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			return
+		}
 		assigningTask, err := repositories.AssignWorkerToTask(ctx, queries, worker.ID, task.ID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
@@ -102,36 +102,9 @@ func AssignWorker(queries *db.Queries, ctx context.Context, minioClient *minio.C
 			if deleteErr != nil {
 				log.Printf("Failed to delete dead worker %v: %v\n", worker.ID, deleteErr.Error())
 			}
-
-			worker, err = repositories.GetAvailableWorker(ctx, queries)
-			if errors.Is(err, pgx.ErrNoRows) {
-				return
-			}
-			if err != nil {
-				log.Printf("%v\n", err.Error())
-				return
-			}
 			continue
 		}
 		resp.Body.Close()
 		log.Printf("Assigned %v to %v\n", task.ID, worker.ID)
-		worker, err = repositories.GetAvailableWorker(ctx, queries)
-		if errors.Is(err, pgx.ErrNoRows) {
-			log.Printf("workers: %v\n", err.Error())
-			return
-		}
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			return
-		}
-		task, err = repositories.GetUnassignedTasks(ctx, queries)
-		if errors.Is(err, pgx.ErrNoRows) {
-			log.Printf("tasks: %v\n", err.Error())
-			return
-		}
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			return
-		}
 	}
 }

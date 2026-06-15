@@ -1,0 +1,10 @@
+# Stage 1: Build the goose binary
+FROM golang:1.26.3-alpine AS builder
+RUN apk add --no-cache git
+RUN CGO_ENABLED=0 go install github.com/pressly/goose/v3/cmd/goose@latest
+
+# Stage 2: Create a minimal runner image
+FROM alpine:3.19
+WORKDIR /app
+COPY --from=builder /go/bin/goose /usr/local/bin/goose
+CMD ["goose", "up"]

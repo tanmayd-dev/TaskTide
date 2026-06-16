@@ -80,29 +80,9 @@ func getFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 	}
 }
 
-func addFileToWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var fileModel models.InputFile
-		err := json.NewDecoder(r.Body).Decode(&fileModel)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "could not parse input", http.StatusBadRequest)
-			return
-		}
-		err = repositories.AttachFile(queries, ctx, minioClient, fileModel.ID, fileModel.WorkflowID)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not attach file", http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}
-}
-
 func Router(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/", addFile(queries, ctx, minioClient))
 		r.Get("/", getFile(queries, ctx, minioClient))
-		r.Post("/workflow", addFileToWorkflow(queries, ctx, minioClient))
 	}
 }

@@ -20,6 +20,10 @@ func Execute(task models.WorkerTaskExecution) {
 		taskError = tasks.Noop(&task)
 	case models.TaskOUTPUT:
 		taskError = tasks.Output(&task)
+	case models.TaskDocRead:
+		taskError = tasks.DocRead(&task)
+	case models.TaskCSVRead:
+		taskError = tasks.CSVRead(&task)
 	default:
 		taskError = errors.New("not implemented")
 		log.Printf("Not implemented for %v\n", task.TaskBase.TaskType)

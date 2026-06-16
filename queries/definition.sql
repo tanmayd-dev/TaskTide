@@ -15,10 +15,6 @@ UPDATE task_definition
 SET task_output = $2
 WHERE id = $1;
 
--- name: UpdateWorkflowOutput :exec
-UPDATE workflow_definition
-SET workflow_output = $2
-WHERE id = $1;
 
 -- name: CreateTask :one
 INSERT INTO task_definition (

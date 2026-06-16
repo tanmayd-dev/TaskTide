@@ -10,7 +10,7 @@ export const TaskTideAPI = {
         return res.json();
     },
 
-    // Get a specific fat workflow definition by ID
+    // Get a specific fat workflow definition by ID (includes its tasks)
     async getWorkflow(id) {
         const res = await fetch(`${API_BASE}/workflow/${id}`);
         if (!res.ok) throw new Error(`Failed to fetch workflow ${id}`);
@@ -39,22 +39,7 @@ export const TaskTideAPI = {
         return res.json();
     },
 
-    // Add task dependency details
-    async addTaskDependency(id, dependencies, inputFromDependency) {
-        const res = await fetch(`${API_BASE}/workflow/dependency`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id: id,
-                dependencies: dependencies,
-                input_from_dependency: inputFromDependency
-            })
-        });
-        if (!res.ok) throw new Error('Failed to add task dependency');
-        return res;
-    },
-
-    // Upload an input file
+    // Upload an input file (binds to a reader node)
     async uploadFile(file) {
         const formData = new FormData();
         formData.append('file', file);
@@ -64,10 +49,10 @@ export const TaskTideAPI = {
             body: formData // Content-Type is set automatically by the browser with boundary
         });
         if (!res.ok) throw new Error('Failed to upload file');
-        return res.json();
+        return res.json(); // Returns models.InputFile { id, file_name }
     },
 
-    // Start a workflow execution
+    // Start a workflow execution run
     async startWorkflow(workflowId) {
         const res = await fetch(`${API_BASE}/workflow/`, {
             method: 'POST',
@@ -78,7 +63,7 @@ export const TaskTideAPI = {
         return res.json(); // Returns { id: executionID }
     },
 
-    // Get current task execution statuses for a workflow execution run
+    // Get current task execution statuses for a workflow run
     async getWorkflowStatus(executionId) {
         const res = await fetch(`${API_BASE}/workflow/status`, {
             method: 'POST',
@@ -87,5 +72,32 @@ export const TaskTideAPI = {
         });
         if (!res.ok) throw new Error('Failed to fetch workflow execution status');
         return res.json(); // Returns []models.TaskExecution
+    },
+
+    // Download a file by ID using a GET request with JSON body
+    async downloadFile(fileId, fileName) {
+        try {
+            const res = await fetch(`${API_BASE}/file`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: fileId })
+            });
+            if (!res.ok) throw new Error('Failed to download file content');
+            
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName || `file_${fileId.substring(0, 8)}`;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err) {
+            console.error('File download failed:', err);
+            alert(`Download failed: ${err.message}`);
+        }
     }
 };

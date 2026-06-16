@@ -81,18 +81,13 @@ INSERT INTO workflow_definition (
     workflow_name
 ) VALUES (
     $1
-) RETURNING id, workflow_name, workflow_input, workflow_output
+) RETURNING id, workflow_name
 `
 
 func (q *Queries) CreateWorkflow(ctx context.Context, workflowName pgtype.Text) (WorkflowDefinition, error) {
 	row := q.db.QueryRow(ctx, createWorkflow, workflowName)
 	var i WorkflowDefinition
-	err := row.Scan(
-		&i.ID,
-		&i.WorkflowName,
-		&i.WorkflowInput,
-		&i.WorkflowOutput,
-	)
+	err := row.Scan(&i.ID, &i.WorkflowName)
 	return i, err
 }
 
@@ -143,7 +138,7 @@ func (q *Queries) GetTaskDependencies(ctx context.Context, taskID pgtype.UUID) (
 }
 
 const getWorkflow = `-- name: GetWorkflow :one
-SELECT id, workflow_name, workflow_input, workflow_output FROM workflow_definition WHERE (
+SELECT id, workflow_name FROM workflow_definition WHERE (
     id = $1
 )
 `
@@ -151,12 +146,7 @@ SELECT id, workflow_name, workflow_input, workflow_output FROM workflow_definiti
 func (q *Queries) GetWorkflow(ctx context.Context, id pgtype.UUID) (WorkflowDefinition, error) {
 	row := q.db.QueryRow(ctx, getWorkflow, id)
 	var i WorkflowDefinition
-	err := row.Scan(
-		&i.ID,
-		&i.WorkflowName,
-		&i.WorkflowInput,
-		&i.WorkflowOutput,
-	)
+	err := row.Scan(&i.ID, &i.WorkflowName)
 	return i, err
 }
 
@@ -195,7 +185,7 @@ func (q *Queries) GetWorkflowTasks(ctx context.Context, workflowID pgtype.UUID) 
 }
 
 const listWorkflows = `-- name: ListWorkflows :many
-SELECT id, workflow_name, workflow_input, workflow_output FROM workflow_definition
+SELECT id, workflow_name FROM workflow_definition
 `
 
 func (q *Queries) ListWorkflows(ctx context.Context) ([]WorkflowDefinition, error) {
@@ -207,12 +197,7 @@ func (q *Queries) ListWorkflows(ctx context.Context) ([]WorkflowDefinition, erro
 	var items []WorkflowDefinition
 	for rows.Next() {
 		var i WorkflowDefinition
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkflowName,
-			&i.WorkflowInput,
-			&i.WorkflowOutput,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.WorkflowName); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -253,21 +238,5 @@ type UpdateTaskOutputParams struct {
 
 func (q *Queries) UpdateTaskOutput(ctx context.Context, arg UpdateTaskOutputParams) error {
 	_, err := q.db.Exec(ctx, updateTaskOutput, arg.ID, arg.TaskOutput)
-	return err
-}
-
-const updateWorkflowOutput = `-- name: UpdateWorkflowOutput :exec
-UPDATE workflow_definition
-SET workflow_output = $2
-WHERE id = $1
-`
-
-type UpdateWorkflowOutputParams struct {
-	ID             pgtype.UUID
-	WorkflowOutput pgtype.UUID
-}
-
-func (q *Queries) UpdateWorkflowOutput(ctx context.Context, arg UpdateWorkflowOutputParams) error {
-	_, err := q.db.Exec(ctx, updateWorkflowOutput, arg.ID, arg.WorkflowOutput)
 	return err
 }

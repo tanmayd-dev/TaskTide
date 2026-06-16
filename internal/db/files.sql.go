@@ -11,30 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addFileToWorkflow = `-- name: AddFileToWorkflow :one
-UPDATE workflow_definition
-SET workflow_input = $1
-WHERE id = $2
-RETURNING id, workflow_name, workflow_input, workflow_output
-`
-
-type AddFileToWorkflowParams struct {
-	WorkflowInput pgtype.UUID
-	ID            pgtype.UUID
-}
-
-func (q *Queries) AddFileToWorkflow(ctx context.Context, arg AddFileToWorkflowParams) (WorkflowDefinition, error) {
-	row := q.db.QueryRow(ctx, addFileToWorkflow, arg.WorkflowInput, arg.ID)
-	var i WorkflowDefinition
-	err := row.Scan(
-		&i.ID,
-		&i.WorkflowName,
-		&i.WorkflowInput,
-		&i.WorkflowOutput,
-	)
-	return i, err
-}
-
 const createFile = `-- name: CreateFile :one
 INSERT INTO input_file (
     file_name

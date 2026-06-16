@@ -66,19 +66,9 @@ func WorkerModel(workerDB db.Worker) models.Worker {
 }
 
 func WorkflowDefinitionModel(workflowDefinitionDB db.WorkflowDefinition) models.WorkflowDefinition {
-	workflowInput := models.InputFileID("")
-	if workflowDefinitionDB.WorkflowInput.Valid {
-		workflowInput = models.InputFileID(workflowDefinitionDB.WorkflowInput.String())
-	}
-	workflowOutput := models.InputFileID("")
-	if workflowDefinitionDB.WorkflowOutput.Valid {
-		workflowOutput = models.InputFileID(workflowDefinitionDB.WorkflowOutput.String())
-	}
 	return models.WorkflowDefinition{
-		ID:             models.WorkflowDefinitionID(workflowDefinitionDB.ID.String()),
-		WorkflowName:   workflowDefinitionDB.WorkflowName.String,
-		WorkflowInput:  workflowInput,
-		WorkflowOutput: workflowOutput,
+		ID:           models.WorkflowDefinitionID(workflowDefinitionDB.ID.String()),
+		WorkflowName: workflowDefinitionDB.WorkflowName.String,
 	}
 }
 

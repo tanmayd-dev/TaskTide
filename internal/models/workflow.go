@@ -96,10 +96,8 @@ type Worker struct {
 }
 
 type WorkflowDefinition struct {
-	ID             WorkflowDefinitionID `json:"id,omitempty"`
-	WorkflowName   string               `json:"workflow_name,omitempty"`
-	WorkflowInput  InputFileID          `json:"workflow_input,omitempty"`
-	WorkflowOutput InputFileID          `json:"workflow_output,omitempty"`
+	ID           WorkflowDefinitionID `json:"id,omitempty"`
+	WorkflowName string               `json:"workflow_name,omitempty"`
 }
 
 type WorkflowExecution struct {

@@ -32,3 +32,6 @@ WHERE expires_at < NOW()
 UPDATE worker_leases
 SET completed = TRUE
 WHERE job_id = $1;
+
+-- name: GetLeasesByWorker :many
+SELECT * FROM worker_leases WHERE worker_id = $1 AND completed = FALSE;

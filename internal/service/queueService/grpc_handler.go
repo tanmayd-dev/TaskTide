@@ -212,10 +212,41 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 			ID:     jobUUID,
 		})
 	} else {
-		_, _ = h.Queries.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
-			Status: "failed",
-			ID:     jobUUID,
-		})
+		// Fetch current job details to check retries
+		job, err := h.Queries.GetJob(ctx, jobUUID)
+		if err == nil {
+			if job.RetryCount < job.MaxRetries {
+				// Calculate exponential backoff duration: 2^(retry_count) * 2 seconds
+				backoffSec := 1 << (job.RetryCount) * 2
+				nextExec := time.Now().Add(time.Duration(backoffSec) * time.Second)
+				_, _ = h.Queries.IncrementJobRetryCount(ctx, db.IncrementJobRetryCountParams{
+					ScheduledAt: pgtype.Timestamp{Time: nextExec, Valid: true},
+					ID:          jobUUID,
+				})
+				log.Printf("CompleteJob: Job %s failed. Retry count incremented to %d. Scheduled for %v.\n", jobUUID.String(), job.RetryCount+1, nextExec)
+
+				// Log retry attempt
+				if exec.ID.Valid {
+					_, _ = h.Queries.CreateRetry(ctx, db.CreateRetryParams{
+						JobID:         jobUUID,
+						ExecutionID:   exec.ID,
+						AttemptNumber: job.RetryCount + 1,
+						ErrorReason:   pgtype.Text{String: req.ErrorReason, Valid: req.ErrorReason != ""},
+					})
+				}
+			} else {
+				// Max retries exceeded - move to DLQ
+				_, _ = h.Queries.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
+					Status: "dead_letter",
+					ID:     jobUUID,
+				})
+				_, _ = h.Queries.CreateDeadLetterJob(ctx, db.CreateDeadLetterJobParams{
+					JobID:       jobUUID,
+					ErrorReason: pgtype.Text{String: req.ErrorReason, Valid: req.ErrorReason != ""},
+				})
+				log.Printf("CompleteJob: Job %s failed and retries exhausted. Moved to DLQ.\n", jobUUID.String())
+			}
+		}
 	}
 
 	// Handle workflow task execution updates

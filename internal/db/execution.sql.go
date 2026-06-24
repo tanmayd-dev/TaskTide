@@ -207,6 +207,17 @@ func (q *Queries) GetWorkflowTaskExecutions(ctx context.Context, workflowID pgty
 	return items, nil
 }
 
+const markTaskAssigned = `-- name: MarkTaskAssigned :exec
+UPDATE task_execution
+SET task_assigned = TRUE
+WHERE id = $1
+`
+
+func (q *Queries) MarkTaskAssigned(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markTaskAssigned, id)
+	return err
+}
+
 const markTaskComplete = `-- name: MarkTaskComplete :exec
 UPDATE task_execution SET
 task_completed = TRUE,

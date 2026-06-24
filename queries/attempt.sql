@@ -7,3 +7,7 @@ INSERT INTO task_attempt (
 ) VALUES (
     $1, $2, $3, $4
 ) RETURNING *;
+
+-- name: GetTaskAttemptsCount :one
+SELECT COUNT(*) FROM task_attempt WHERE task_execution_base = $1;
+

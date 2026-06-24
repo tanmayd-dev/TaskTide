@@ -57,10 +57,32 @@ func handleCompletion(queries *db.Queries, ctx context.Context, minioClient *min
 			return
 		}
 
-		err = repositories.MarkTaskComplete(ctx, queries, completion.ID)
-		if utils.HasError(w, r, "Could not update task execution status", err) {
-			return
+		if completion.TaskSucceeded {
+			err = repositories.MarkTaskComplete(ctx, queries, completion.ID)
+			if utils.HasError(w, r, "Could not update task execution status", err) {
+				return
+			}
+		} else {
+			attempts, err := repositories.GetTaskAttemptsCount(ctx, queries, completion.ID)
+			if utils.HasError(w, r, "Could not count task attempts", err) {
+				return
+			}
+			log.Printf("Task %s failed. Attempt %d/%d\n", completion.ID, attempts, 3)
+			if attempts >= 3 {
+				log.Printf("Task %s failed 3 times. Marking task completed (failed).\n", completion.ID)
+				err = repositories.MarkTaskComplete(ctx, queries, completion.ID)
+				if utils.HasError(w, r, "Could not update task execution status", err) {
+					return
+				}
+			} else {
+				log.Printf("Retrying task %s. Unassigning worker from task.\n", completion.ID)
+				err = repositories.UnassignTask(ctx, queries, completion.ID)
+				if utils.HasError(w, r, "Could not unassign task", err) {
+					return
+				}
+			}
 		}
+
 
 		if taskExecution.TaskWorker != "" {
 			err = repositories.MarkWorkerAvailable(ctx, queries, taskExecution.TaskWorker)

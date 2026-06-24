@@ -37,19 +37,43 @@ func handleCompletion(queries *db.Queries, ctx context.Context, minioClient *min
 	return func(w http.ResponseWriter, r *http.Request) {
 		completion, err := utils.ReadRequest[models.WorkerTaskExecution](w, r)
 		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse form", http.StatusBadRequest)
-			return
-		}
-		err = repositories.CreateTaskAttempt(ctx, completion, w, queries)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse form", http.StatusBadRequest)
+			log.Printf("could not read completion request: %v\n", err.Error())
+			http.Error(w, "Could not parse request", http.StatusBadRequest)
 			return
 		}
 
-		if taskExecution.TaskWorker != "" {
-			err = repositories.MarkWorkerAvailable(ctx, queries, taskExecution.TaskWorker)
+		taskExecution, err := repositories.GetTaskExecution(ctx, queries, completion.ID)
+		if err != nil {
+			log.Printf("could not get task execution: %v\n", err.Error())
+			http.Error(w, "Could not get task execution", http.StatusBadRequest)
+			return
+		}
+
+		if completion.TaskSucceeded && taskExecution.TaskOutput != "" {
+			err = repositories.UpdateFileContent(ctx, queries, minioClient, os.Getenv("FILES_BUCKET_NAME"), taskExecution.TaskOutput, completion.TaskOutput)
+			if err != nil {
+				log.Printf("could not update task output file content: %v\n", err)
+				http.Error(w, "Could not update task output file", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		err = repositories.CreateTaskAttempt(ctx, queries, completion)
+		if err != nil {
+			log.Printf("could not create task attempt: %v\n", err.Error())
+			http.Error(w, "Could not create task attempt", http.StatusBadRequest)
+			return
+		}
+
+		err = repositories.MarkTaskComplete(ctx, queries, completion.ID)
+		if err != nil {
+			log.Printf("could not mark task complete: %v\n", err)
+			http.Error(w, "Could not mark task complete", http.StatusInternalServerError)
+			return
+		}
+
+		if completion.TaskWorker != "" {
+			err = repositories.MarkWorkerAvailable(ctx, queries, completion.TaskWorker)
 			if err != nil {
 				log.Printf("could not mark worker available: %v\n", err)
 			}

@@ -74,14 +74,10 @@ export const TaskTideAPI = {
         return res.json(); // Returns []models.TaskExecution
     },
 
-    // Download a file by ID using a GET request with JSON body
+    // Download a file by ID using query parameter
     async downloadFile(fileId, fileName) {
         try {
-            const res = await fetch(`${API_BASE}/file`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: fileId })
-            });
+            const res = await fetch(`${API_BASE}/file?id=${fileId}`);
             if (!res.ok) throw new Error('Failed to download file content');
             
             const blob = await res.blob();

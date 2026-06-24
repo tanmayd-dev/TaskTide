@@ -171,6 +171,31 @@ func (q *Queries) CreateRetry(ctx context.Context, arg CreateRetryParams) (Retry
 	return i, err
 }
 
+const getActiveExecution = `-- name: GetActiveExecution :one
+SELECT id, job_id, worker_id, started_at, finished_at, status FROM executions
+WHERE job_id = $1 AND worker_id = $2 AND finished_at IS NULL
+ORDER BY started_at DESC LIMIT 1
+`
+
+type GetActiveExecutionParams struct {
+	JobID    pgtype.UUID
+	WorkerID string
+}
+
+func (q *Queries) GetActiveExecution(ctx context.Context, arg GetActiveExecutionParams) (Execution, error) {
+	row := q.db.QueryRow(ctx, getActiveExecution, arg.JobID, arg.WorkerID)
+	var i Execution
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+	)
+	return i, err
+}
+
 const getActiveJobsCount = `-- name: GetActiveJobsCount :one
 SELECT count(*) FROM jobs WHERE status = 'running'
 `

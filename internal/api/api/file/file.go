@@ -2,7 +2,6 @@ package file
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -47,14 +46,12 @@ func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 
 func getFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var fileModel models.InputFile
-		err := json.NewDecoder(r.Body).Decode(&fileModel)
-		if err != nil {
-			log.Printf("%v\n", err.Error())
-			http.Error(w, "could not parse input", http.StatusBadRequest)
+		fileID := r.URL.Query().Get("id")
+		if fileID == "" {
+			http.Error(w, "missing 'id' query parameter", http.StatusBadRequest)
 			return
 		}
-		minioFile, info, err := repositories.GetFile(ctx, queries, fileModel.ID, minioClient, os.Getenv("FILES_BUCKET_NAME"))
+		minioFile, info, err := repositories.GetFile(ctx, queries, models.InputFileID(fileID), minioClient, os.Getenv("FILES_BUCKET_NAME"))
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "could not get file", http.StatusBadRequest)

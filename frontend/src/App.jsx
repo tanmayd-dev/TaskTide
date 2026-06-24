@@ -207,8 +207,14 @@ function Workspace() {
   const onPaneContextMenu = useCallback(
     (event) => {
       event.preventDefault();
+      event.stopPropagation();
+      if (!reactFlowWrapper.current) return;
+      const rect = reactFlowWrapper.current.getBoundingClientRect();
       setMenuVisible(true);
-      setMenuScreenPos({ x: event.clientX, y: event.clientY });
+      setMenuScreenPos({
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      });
       setMenuPosition(
         screenToFlowPosition({
           x: event.clientX,
@@ -219,14 +225,40 @@ function Workspace() {
     [screenToFlowPosition]
   );
 
+  const onNodeContextMenu = useCallback(
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    []
+  );
+
+  const onEdgeContextMenu = useCallback(
+    (event, edge) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+      setStatusText('Connection deleted');
+      setStatusType('info');
+    },
+    [setEdges]
+  );
+
   const handleCloseMenu = () => {
     setMenuVisible(false);
   };
 
   useEffect(() => {
     if (menuVisible) {
-      document.addEventListener('click', handleCloseMenu);
-      return () => document.removeEventListener('click', handleCloseMenu);
+      const handleClose = () => setMenuVisible(false);
+      // Wait for current execution frame to clear so that the initial contextmenu/click doesn't trigger this listener immediately
+      const timer = setTimeout(() => {
+        document.addEventListener('click', handleClose);
+      }, 0);
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('click', handleClose);
+      };
     }
   }, [menuVisible]);
 
@@ -500,6 +532,39 @@ function Workspace() {
     }
   };
 
+  const handleDeleteSelected = () => {
+    const selectedNodeIds = nodes.filter(n => n.selected).map(n => n.id);
+    if (selectedNodeIds.length > 0) {
+      setNodes((nds) => nds.filter((node) => !node.selected));
+      setEdges((eds) => eds.filter((edge) => !edge.selected && !selectedNodeIds.includes(edge.source) && !selectedNodeIds.includes(edge.target)));
+      setStatusText('Selected node(s) deleted');
+      setStatusType('info');
+      return;
+    }
+
+    const selectedEdges = edges.filter(e => e.selected);
+    if (selectedEdges.length > 0) {
+      setEdges((eds) => eds.filter((edge) => !edge.selected));
+      setStatusText('Selected connection(s) deleted');
+      setStatusType('info');
+      return;
+    }
+
+    setStatusText('No node or edge selected to delete');
+    setStatusType('error');
+  };
+
+  const handleClearAll = () => {
+    if (window.confirm("Are you sure you want to clear the entire workspace?")) {
+      setNodes([]);
+      setEdges([]);
+      setSelectedWorkflowId(null);
+      setCurrentWorkflowName('');
+      setStatusText('Workspace cleared');
+      setStatusType('info');
+    }
+  };
+
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
     if (executionIntervalRef.current) {
@@ -517,6 +582,8 @@ function Workspace() {
         onNew={handleNewWorkflow}
         onSave={handleSaveWorkflow}
         onRun={handleRunWorkflow}
+        onDeleteSelected={handleDeleteSelected}
+        onClearAll={handleClearAll}
         isSaveDisabled={!currentWorkflowName || nodes.length === 0}
         isRunDisabled={!selectedWorkflowId}
         isDark={isDark}
@@ -538,6 +605,8 @@ function Workspace() {
             onDrop={onDrop}
             onDragOver={onDragOver}
             onPaneContextMenu={onPaneContextMenu}
+            onNodeContextMenu={onNodeContextMenu}
+            onEdgeContextMenu={onEdgeContextMenu}
             nodeTypes={nodeTypes}
             snapToGrid
             snapGrid={[15, 15]}
@@ -562,8 +631,8 @@ function Workspace() {
             <div
               className="absolute z-50 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-lg text-xs py-1 min-w-[150px]"
               style={{
-                top: menuScreenPos.y - 56, // adjust header offset
-                left: menuScreenPos.x - 240 // adjust sidebar offset
+                top: menuScreenPos.y,
+                left: menuScreenPos.x
               }}
             >
               <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-mono border-b border-slate-100 dark:border-zinc-800">

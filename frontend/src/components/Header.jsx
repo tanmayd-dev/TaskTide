@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Save, Plus, Sun, Moon, Database } from 'lucide-react';
+import { Play, Save, Plus, Sun, Moon, Database, Trash2 } from 'lucide-react';
 
 export const Header = ({
   workflows,
@@ -8,6 +8,8 @@ export const Header = ({
   onNew,
   onSave,
   onRun,
+  onDeleteSelected,
+  onClearAll,
   isSaveDisabled,
   isRunDisabled,
   isDark,
@@ -100,6 +102,26 @@ export const Header = ({
         >
           <Play className="w-3.5 h-3.5 fill-current" />
           Run Execution
+        </button>
+
+        <button
+          type="button"
+          onClick={onDeleteSelected}
+          className="h-8 px-3 text-xs bg-red-600 hover:bg-red-700 text-white font-medium flex items-center gap-1.5 cursor-pointer transition-colors border border-red-600"
+          title="Delete selected nodes or edges"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Delete Selected
+        </button>
+
+        <button
+          type="button"
+          onClick={onClearAll}
+          className="h-8 px-3 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-700 dark:text-slate-200 font-medium flex items-center gap-1.5 cursor-pointer transition-colors border border-slate-200 dark:border-zinc-800"
+          title="Clear the entire workspace canvas"
+        >
+          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+          Clear All
         </button>
       </div>
 

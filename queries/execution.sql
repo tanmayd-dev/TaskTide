@@ -68,3 +68,4 @@ task_worker = NULL
 WHERE (
     id = $1
 );
+

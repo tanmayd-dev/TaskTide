@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package tasktide;
+
+option go_package = "github.com/tanmayd-dev/TaskTide/internal/pb";
+
+service TaskTideService {
+    rpc RegisterWorker(RegisterRequest) returns (RegisterResponse);
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+    rpc PollJobs(PollRequest) returns (PollResponse);
+    rpc CompleteJob(CompleteRequest) returns (CompleteResponse);
+    rpc SubmitJob(SubmitRequest) returns (SubmitResponse);
+}
+
+message RegisterRequest {
+    string hostname = 1;
+    string port = 2;
+    int32 concurrency = 3;
+    repeated string capabilities = 4;
+}
+
+message RegisterResponse {
+    string worker_id = 1;
+}
+
+message HeartbeatRequest {
+    string worker_id = 1;
+}
+
+message HeartbeatResponse {
+    bool success = 1;
+}
+
+message PollRequest {
+    string worker_id = 1;
+    repeated string capabilities = 2;
+    int32 free_slots = 3;
+}
+
+message Job {
+    string id = 1;
+    string queue_name = 2;
+    string payload = 3;
+    int32 retry_count = 4;
+    int32 priority = 5;
+    string task_execution_id = 6;
+}
+
+message PollResponse {
+    repeated Job jobs = 1;
+}
+
+message CompleteRequest {
+    string job_id = 1;
+    string worker_id = 2;
+    bool success = 3;
+    string output_data = 4;
+    string error_reason = 5;
+}
+
+message CompleteResponse {
+    bool success = 1;
+}
+
+message SubmitRequest {
+    string queue_name = 1;
+    string payload_json = 2;
+    int32 max_retries = 3;
+    int32 delay_seconds = 4;
+    int32 priority = 5;
+    string idempotency_key = 6;
+}
+
+message SubmitResponse {
+    string job_id = 1;
+    string status = 2;
+}

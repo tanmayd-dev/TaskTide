@@ -171,6 +171,19 @@ func (q *Queries) CreateRetry(ctx context.Context, arg CreateRetryParams) (Retry
 	return i, err
 }
 
+const ensureQueueExists = `-- name: EnsureQueueExists :exec
+INSERT INTO queues (
+    name, paused
+) VALUES (
+    $1, FALSE
+) ON CONFLICT (name) DO NOTHING
+`
+
+func (q *Queries) EnsureQueueExists(ctx context.Context, name string) error {
+	_, err := q.db.Exec(ctx, ensureQueueExists, name)
+	return err
+}
+
 const getActiveExecution = `-- name: GetActiveExecution :one
 SELECT id, job_id, worker_id, started_at, finished_at, status FROM executions
 WHERE job_id = $1 AND worker_id = $2 AND finished_at IS NULL

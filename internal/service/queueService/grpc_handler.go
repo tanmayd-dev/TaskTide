@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -97,7 +98,10 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 					// Read file content from MinIO
 					var inputContent string
 					if taskExec.TaskInput.Valid {
-						bucketName := "tasktide-files"
+						bucketName := os.Getenv("FILES_BUCKET_NAME")
+						if bucketName == "" {
+							bucketName = "files"
+						}
 						object, _, err := repositories.GetFile(ctx, h.Queries, models.InputFileID(taskExec.TaskInput.String()), h.MinioClient, bucketName)
 						if err == nil {
 							var contentBytes []byte
@@ -221,12 +225,18 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 		observability.JobDurationHistogram.WithLabelValues(queueName, execStatus).Observe(duration)
 	}
 
+	// Determine if this job is in a terminal state for workflow purposes.
+	// A job is terminal when it succeeds OR when retries are exhausted (going to DLQ).
+	// An intermediate failure that will be retried is NOT terminal.
+	isTerminal := false
+
 	if req.Success {
 		_, _ = h.Queries.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
 			Status: "completed",
 			ID:     jobUUID,
 		})
 		observability.JobExecutionCounter.WithLabelValues(queueName, "succeeded").Inc()
+		isTerminal = true
 	} else {
 		if err == nil {
 			if job.RetryCount < job.MaxRetries {
@@ -242,7 +252,7 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 				observability.JobExecutionCounter.WithLabelValues(queueName, "failed_retry").Inc()
 				observability.RetryCounter.WithLabelValues(queueName).Inc()
 
-				// Log retry attempt
+				// Log retry attempt in retries table — but do NOT update workflow state yet.
 				if exec.ID.Valid {
 					_, _ = h.Queries.CreateRetry(ctx, db.CreateRetryParams{
 						JobID:         jobUUID,
@@ -251,6 +261,7 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 						ErrorReason:   pgtype.Text{String: req.ErrorReason, Valid: req.ErrorReason != ""},
 					})
 				}
+				// isTerminal remains false — workflow task_execution is NOT marked done yet.
 			} else {
 				// Max retries exceeded - move to DLQ
 				_, _ = h.Queries.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
@@ -263,40 +274,52 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 				})
 				log.Printf("CompleteJob: Job %s failed and retries exhausted. Moved to DLQ.\n", jobUUID.String())
 				observability.JobExecutionCounter.WithLabelValues(queueName, "exhausted_dlq").Inc()
+				isTerminal = true
 			}
 		}
 	}
 
-	// Handle workflow task execution updates
+	// Always record an attempt for every execution so that the task_attempt table
+	// provides a full audit trail (e.g., 1 failed + 1 succeeded = 2 attempts).
+	// Marking the task_execution as "complete" and dispatching downstream jobs
+	// only happens at a terminal state to avoid premature workflow progression.
 	if job.TaskExecutionID.Valid {
 		taskExec, err := h.Queries.GetTaskExecution(ctx, job.TaskExecutionID)
 		if err == nil {
 			taskExecModel := models.WorkerTaskExecution{
-				ID:            models.TaskExecutionID(taskExec.ID.String()),
-				TaskWorker:    models.WorkerID(taskExec.TaskWorker.String()),
-				TaskCompleted: true,
+				ID:         models.TaskExecutionID(taskExec.ID.String()),
+				TaskWorker: models.WorkerID(taskExec.TaskWorker.String()),
+				// TaskCompleted is deliberately false for intermediate retries —
+				// it is set true only when isTerminal (below).
+				TaskCompleted: isTerminal,
 				TaskSucceeded: req.Success,
 				TaskOutput:    req.OutputData,
 			}
 
-			// If success and task execution has output file defined, update the content in storage
-			if req.Success && taskExec.TaskOutput.Valid {
-				bucketName := "tasktide-files"
-				err = repositories.UpdateFileContent(ctx, h.Queries, h.MinioClient, bucketName, models.InputFileID(taskExec.TaskOutput.String()), req.OutputData)
-				if err != nil {
-					log.Printf("CompleteJob: failed to update file content: %v\n", err)
-				}
-			}
-
-			// Create task attempt
+			// Record this execution attempt regardless of outcome
 			_ = repositories.CreateTaskAttempt(ctx, h.Queries, taskExecModel)
 
-			// Mark task completed in workflow system
-			_ = repositories.MarkTaskComplete(ctx, h.Queries, taskExecModel.ID)
+			// Only finalise the workflow state at a terminal outcome
+			if isTerminal {
+				// If success and task execution has output file defined, update the content in storage
+				if req.Success && taskExec.TaskOutput.Valid {
+					bucketName := os.Getenv("FILES_BUCKET_NAME")
+					if bucketName == "" {
+						bucketName = "files"
+					}
+					err = repositories.UpdateFileContent(ctx, h.Queries, h.MinioClient, bucketName, models.InputFileID(taskExec.TaskOutput.String()), req.OutputData)
+					if err != nil {
+						log.Printf("CompleteJob: failed to update file content: %v\n", err)
+					}
+				}
 
-			// If workflow task succeeded, submit any downstream tasks that are now ready
-			if req.Success {
-				go h.checkAndSubmitWorkflowJobs(context.Background())
+				// Mark task completed in workflow system
+				_ = repositories.MarkTaskComplete(ctx, h.Queries, taskExecModel.ID)
+
+				// If workflow task succeeded, submit any downstream tasks that are now ready
+				if req.Success {
+					go h.checkAndSubmitWorkflowJobs(context.Background())
+				}
 			}
 		}
 	}
@@ -317,6 +340,7 @@ func (h *GrpcHandler) SubmitJob(ctx context.Context, req *pb.SubmitRequest) (*pb
 		}
 	}
 
+	_ = h.Queries.EnsureQueueExists(ctx, req.QueueName)
 	j, err := h.Queries.CreateJob(ctx, db.CreateJobParams{
 		QueueName:      req.QueueName,
 		Payload:        []byte(req.PayloadJson),
@@ -368,10 +392,11 @@ func (h *GrpcHandler) checkAndSubmitWorkflowJobs(ctx context.Context) {
 			continue
 		}
 
+		_ = h.Queries.EnsureQueueExists(ctx, "default")
 		_, err = h.Queries.CreateJob(ctx, db.CreateJobParams{
 			QueueName:       "default",
 			Payload:         payloadBytes,
-			MaxRetries:      3,
+			MaxRetries:      2,
 			Delay:           0,
 			ScheduledAt:     pgtype.Timestamp{Time: time.Now(), Valid: true},
 			Priority:        0,

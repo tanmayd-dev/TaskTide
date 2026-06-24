@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
@@ -15,6 +16,9 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/tanmayd-dev/TaskTide/internal/api/queue"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
+	"github.com/tanmayd-dev/TaskTide/internal/pb"
+	"github.com/tanmayd-dev/TaskTide/internal/service/queueService"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -49,6 +53,24 @@ func main() {
 		log.Fatalf("Could not create minioClient: %#v", err)
 	}
 
+	// Setup gRPC Server
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50051"
+	}
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
+	if err != nil {
+		log.Fatalf("failed to listen for gRPC: %v", err)
+	}
+	grpcServer := grpc.NewServer()
+	pb.RegisterTaskTideServiceServer(grpcServer, &queueService.GrpcHandler{Queries: queries})
+	log.Printf("Starting gRPC server on port %s...\n", grpcPort)
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve gRPC: %v", err)
+		}
+	}()
+
 	// Setup router
 	router := chi.NewRouter()
 
@@ -66,3 +88,4 @@ func main() {
 
 	log.Fatal(server.ListenAndServe())
 }
+

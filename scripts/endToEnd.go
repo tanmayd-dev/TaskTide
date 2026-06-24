@@ -151,8 +151,104 @@ func main() {
 	verifyDatabasePersistence(ctx, conn, "MixedWorkflow", 5)
 	log.Println("=== Test Case 3 Passed ===")
 
+	// ----------------------------------------------------
+	// Test Scenario 4: Transient Retry (A fails once, succeeds on retry)
+	// ----------------------------------------------------
+	log.Println("\n=== Starting Test Case 4: Transient Retry ===")
+	workflowID4 := createWorkflow(baseURL, "TransientRetryWorkflow")
+	log.Println("Created workflow:", workflowID4)
+
+	// Create a file with content "FAIL_ONCE"
+	failOnceFile := "tmp/fail_once.txt"
+	err = os.WriteFile(failOnceFile, []byte("FAIL_ONCE"), 0644)
+	if err != nil {
+		log.Fatalf("failed to write fail_once file: %v", err)
+	}
+	defer os.Remove(failOnceFile)
+
+	file4 := uploadFile(baseURL, failOnceFile)
+	attachFileToWorkflow(baseURL, workflowID4, file4)
+
+	transientTask := createTask(baseURL, workflowID4, models.TaskNOOP, "Transient Task", file4.ID, "")
+
+	log.Printf("Created transient task: %s (will fail once)\n", transientTask)
+
+	executionID4 := startWorkflow(baseURL, workflowID4)
+	log.Printf("Workflow execution started: %s\n", executionID4)
+
+	pollWorkflowStatus(baseURL, executionID4)
+	log.Println("Workflow execution completed successfully.")
+
+	// Verify DB Persistence and 2 attempts
+	verifyDatabasePersistence(ctx, conn, "TransientRetryWorkflow", 1)
+	
+	// Query task attempts count for transientTask
+	var teID4 string
+	err = conn.QueryRow(ctx, "SELECT id FROM task_execution WHERE workflow_id = $1 AND task_base = $2", executionID4, transientTask).Scan(&teID4)
+	if err != nil {
+		log.Fatalf("Database validation failed: could not find task execution for %s: %v", transientTask, err)
+	}
+	var attemptCount4 int
+	err = conn.QueryRow(ctx, "SELECT count(*) FROM task_attempt WHERE task_execution_base = $1", teID4).Scan(&attemptCount4)
+	if err != nil {
+		log.Fatalf("Database validation failed: could not count task attempts for transient task: %v", err)
+	}
+	if attemptCount4 != 2 {
+		log.Fatalf("Database validation failed: expected exactly 2 attempts, got %d", attemptCount4)
+	}
+	log.Printf("[DB OK] found exactly %d task attempts for transient task (first failed, second succeeded)\n", attemptCount4)
+	log.Println("=== Test Case 4 Passed ===")
+
+	// ----------------------------------------------------
+	// Test Scenario 5: Permanent Retry Exhaustion (A fails 3 times, marked completed (failed))
+	// ----------------------------------------------------
+	log.Println("\n=== Starting Test Case 5: Permanent Failure Retry Exhaustion ===")
+	workflowID5 := createWorkflow(baseURL, "PermanentFailureWorkflow")
+	log.Println("Created workflow:", workflowID5)
+
+	// Create a file with content "FAIL"
+	failFile := "tmp/fail.txt"
+	err = os.WriteFile(failFile, []byte("FAIL"), 0644)
+	if err != nil {
+		log.Fatalf("failed to write fail file: %v", err)
+	}
+	defer os.Remove(failFile)
+
+	file5 := uploadFile(baseURL, failFile)
+	attachFileToWorkflow(baseURL, workflowID5, file5)
+
+	permanentTask := createTask(baseURL, workflowID5, models.TaskNOOP, "Permanent Failure Task", file5.ID, "")
+
+	log.Printf("Created permanent failure task: %s (will fail 3 times)\n", permanentTask)
+
+	executionID5 := startWorkflow(baseURL, workflowID5)
+	log.Printf("Workflow execution started: %s\n", executionID5)
+
+	pollWorkflowStatus(baseURL, executionID5)
+	log.Println("Workflow execution completed (failed tasks marked completed after retry exhaustion).")
+
+	// Verify DB Persistence and 3 attempts
+	verifyDatabasePersistence(ctx, conn, "PermanentFailureWorkflow", 1)
+
+	var teID5 string
+	err = conn.QueryRow(ctx, "SELECT id FROM task_execution WHERE workflow_id = $1 AND task_base = $2", executionID5, permanentTask).Scan(&teID5)
+	if err != nil {
+		log.Fatalf("Database validation failed: could not find task execution for %s: %v", permanentTask, err)
+	}
+	var attemptCount5 int
+	err = conn.QueryRow(ctx, "SELECT count(*) FROM task_attempt WHERE task_execution_base = $1", teID5).Scan(&attemptCount5)
+	if err != nil {
+		log.Fatalf("Database validation failed: could not count task attempts for permanent task: %v", err)
+	}
+	if attemptCount5 != 3 {
+		log.Fatalf("Database validation failed: expected exactly 3 attempts, got %d", attemptCount5)
+	}
+	log.Printf("[DB OK] found exactly %d task attempts for permanent task (all 3 failed)\n", attemptCount5)
+	log.Println("=== Test Case 5 Passed ===")
+
 	log.Println("\nAll Test Cases executed and verified successfully!")
 }
+
 
 func getEnv(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {

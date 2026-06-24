@@ -26,3 +26,12 @@ func CreateTaskAttempt(ctx context.Context, queries *db.Queries, completion mode
 	return err
 }
 
+func GetTaskAttemptsCount(ctx context.Context, queries *db.Queries, id models.TaskExecutionID) (int64, error) {
+	uuid, err := utils.StringToUUID(string(id))
+	if err != nil {
+		return 0, err
+	}
+	return queries.GetTaskAttemptsCount(ctx, uuid)
+}
+
+

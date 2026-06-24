@@ -46,3 +46,14 @@ func (q *Queries) CreateTaskAttempt(ctx context.Context, arg CreateTaskAttemptPa
 	)
 	return i, err
 }
+
+const getTaskAttemptsCount = `-- name: GetTaskAttemptsCount :one
+SELECT COUNT(*) FROM task_attempt WHERE task_execution_base = $1
+`
+
+func (q *Queries) GetTaskAttemptsCount(ctx context.Context, taskExecutionBase pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getTaskAttemptsCount, taskExecutionBase)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}

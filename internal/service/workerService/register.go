@@ -11,9 +11,9 @@ import (
 	"github.com/tanmayd-dev/TaskTide/internal/models"
 )
 
-func RegisterSelf(port int) error {
+func RegisterSelf(host string, port int) error {
 	worker := models.Worker{
-		WorkerHost: "localhost",
+		WorkerHost: host,
 		WorkerPort: fmt.Sprintf("%v", port),
 	}
 	workerJSON, err := json.Marshal(worker)

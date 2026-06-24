@@ -69,3 +69,8 @@ WHERE (
     id = $1
 );
 
+-- name: MarkTaskAssigned :exec
+UPDATE task_execution
+SET task_assigned = TRUE
+WHERE id = $1;
+

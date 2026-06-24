@@ -1,44 +1,76 @@
 package workerService
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
-	"net/http"
-	"os"
 
 	"github.com/tanmayd-dev/TaskTide/internal/models"
+	"github.com/tanmayd-dev/TaskTide/internal/pb"
 	"github.com/tanmayd-dev/TaskTide/internal/tasks"
 )
 
-func Execute(task models.WorkerTaskExecution) {
+func ExecuteJob(ctx context.Context, client pb.TaskTideServiceClient, workerID string, job *pb.Job) {
+	var payloadStruct struct {
+		Task      models.TaskDefinition `json:"task"`
+		InputData string                `json:"input_data"`
+	}
+
+	err := json.Unmarshal([]byte(job.Payload), &payloadStruct)
+	if err != nil {
+		// Fallback to direct unmarshal for standalone jobs
+		var taskDef models.TaskDefinition
+		errFallback := json.Unmarshal([]byte(job.Payload), &taskDef)
+		if errFallback != nil {
+			log.Printf("ExecuteJob: failed to parse payload: %v\n", errFallback)
+			_, _ = client.CompleteJob(ctx, &pb.CompleteRequest{
+				JobId:       job.Id,
+				WorkerId:    workerID,
+				Success:     false,
+				ErrorReason: errFallback.Error(),
+			})
+			return
+		}
+		payloadStruct.Task = taskDef
+	}
+
+	taskExec := models.WorkerTaskExecution{
+		ID:         models.TaskExecutionID(job.Id),
+		TaskBase:   payloadStruct.Task,
+		TaskWorker: models.WorkerID(workerID),
+		TaskInput:  payloadStruct.InputData,
+	}
+
 	var taskError error
-	switch models.TaskType(task.TaskBase.TaskType) {
+	switch models.TaskType(payloadStruct.Task.TaskType) {
 	case models.TaskNOOP:
-		taskError = tasks.Noop(&task)
+		taskError = tasks.Noop(&taskExec)
 	case models.TaskOUTPUT:
-		taskError = tasks.Output(&task)
+		taskError = tasks.Output(&taskExec)
+	case models.TaskDocRead:
+		taskError = tasks.DocRead(&taskExec)
+	case models.TaskCSVRead:
+		taskError = tasks.CSVRead(&taskExec)
 	default:
-		taskError = errors.New("not implemented")
-		log.Printf("Not implemented for %v\n", task.TaskBase.TaskType)
+		taskError = errors.New("task type not implemented")
+		log.Printf("ExecuteJob: not implemented for %v\n", payloadStruct.Task.TaskType)
 	}
+
 	success := taskError == nil
-	task.TaskCompleted = true
-	task.TaskSucceeded = success
-	taskJSON, err := json.Marshal(task)
-	if err != nil {
-		log.Printf("%v\n", err.Error())
-		return
+	var errReason string
+	if !success {
+		errReason = taskError.Error()
 	}
-	_, err = http.Post(
-		fmt.Sprintf("http://%v:%v/worker/completion", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT")),
-		"application/json",
-		bytes.NewReader(taskJSON),
-	)
-	if err != nil {
-		log.Printf("%v\n", err.Error())
-		return
+
+	_, rpcErr := client.CompleteJob(ctx, &pb.CompleteRequest{
+		JobId:       job.Id,
+		WorkerId:    workerID,
+		Success:     success,
+		OutputData:  taskExec.TaskOutput,
+		ErrorReason: errReason,
+	})
+	if rpcErr != nil {
+		log.Printf("ExecuteJob: failed to complete job via RPC: %v\n", rpcErr)
 	}
 }

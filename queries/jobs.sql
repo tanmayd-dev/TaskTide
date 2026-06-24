@@ -5,6 +5,13 @@ INSERT INTO queues (
     $1, $2
 ) ON CONFLICT (name) DO UPDATE SET paused = EXCLUDED.paused RETURNING *;
 
+-- name: EnsureQueueExists :exec
+INSERT INTO queues (
+    name, paused
+) VALUES (
+    $1, FALSE
+) ON CONFLICT (name) DO NOTHING;
+
 -- name: GetQueue :one
 SELECT * FROM queues WHERE name = $1;
 

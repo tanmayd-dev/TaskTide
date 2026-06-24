@@ -40,6 +40,9 @@ func main() {
 	defer pool.Close()
 	queries := db.New(pool)
 
+	// Ensure default queue exists on startup
+	_ = queries.EnsureQueueExists(ctx, "default")
+
 	// Start background recovery loop
 	queueService.StartRecoveryLoop(ctx, queries)
 

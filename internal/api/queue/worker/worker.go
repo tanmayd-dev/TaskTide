@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/minio/minio-go/v7"
@@ -75,11 +76,24 @@ func handleCompletion(queries *db.Queries, ctx context.Context, minioClient *min
 					return
 				}
 			} else {
-				log.Printf("Retrying task %s. Unassigning worker from task.\n", completion.ID)
-				err = repositories.UnassignTask(ctx, queries, completion.ID)
-				if utils.HasError(w, r, "Could not unassign task", err) {
-					return
-				}
+				// Calculate exponential backoff duration: 2^attempts seconds (e.g. 2s, 4s)
+				backoffSec := 1 << (attempts - 1) * 2 // attempts = 1 -> 2s, attempts = 2 -> 4s
+				backoffDur := time.Duration(backoffSec) * time.Second
+				log.Printf("Retrying task %s. Backoff duration: %v. Scheduling unassign.\n", completion.ID, backoffDur)
+				
+				go func(teID models.TaskExecutionID, delay time.Duration) {
+					time.Sleep(delay)
+					// Use context.Background() because request context is canceled after HTTP response
+					bgCtx := context.Background()
+					log.Printf("Backoff expired for task %s. Unassigning task now for retry.\n", teID)
+					unassignErr := repositories.UnassignTask(bgCtx, queries, teID)
+					if unassignErr != nil {
+						log.Printf("Failed to unassign task %s in backoff goroutine: %v\n", teID, unassignErr)
+						return
+					}
+					// Trigger AssignWorker to dispatch the task
+					queueService.AssignWorker(queries, bgCtx, minioClient)
+				}(completion.ID, backoffDur)
 			}
 		}
 

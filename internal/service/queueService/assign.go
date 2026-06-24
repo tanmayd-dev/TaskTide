@@ -50,9 +50,11 @@ func AssignWorker(queries *db.Queries, ctx context.Context, minioClient *minio.C
 			log.Printf("%v\n", err.Error())
 			return
 		}
-		object, _, err := repositories.GetFile(ctx, queries, db.InputFile{
-			ID: assigningTask.TaskInput,
-		}, minioClient, os.Getenv("FILES_BUCKET_NAME"))
+		var taskInputStr string
+		if assigningTask.TaskInput.Valid {
+			taskInputStr = assigningTask.TaskInput.String()
+		}
+		object, _, err := repositories.GetFile(ctx, queries, models.InputFileID(taskInputStr), minioClient, os.Getenv("FILES_BUCKET_NAME"))
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			return

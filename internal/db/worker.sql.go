@@ -18,7 +18,7 @@ INSERT INTO worker (
     worker_available
 ) VALUES (
     $1, $2, TRUE
-) RETURNING id, worker_host, worker_port, worker_available
+) RETURNING id, worker_host, worker_port, worker_available, concurrency, capabilities, last_heartbeat
 `
 
 type AddWorkerParams struct {
@@ -34,6 +34,9 @@ func (q *Queries) AddWorker(ctx context.Context, arg AddWorkerParams) (Worker, e
 		&i.WorkerHost,
 		&i.WorkerPort,
 		&i.WorkerAvailable,
+		&i.Concurrency,
+		&i.Capabilities,
+		&i.LastHeartbeat,
 	)
 	return i, err
 }
@@ -41,7 +44,7 @@ func (q *Queries) AddWorker(ctx context.Context, arg AddWorkerParams) (Worker, e
 const assignWorkerToTask = `-- name: AssignWorkerToTask :one
 UPDATE task_execution
 SET task_assigned = TRUE,
-    task_worker = $1
+      task_worker = $1
 WHERE id = $2
   AND task_assigned = FALSE
 RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
@@ -79,8 +82,41 @@ func (q *Queries) DeleteWorker(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const getActiveWorkers = `-- name: GetActiveWorkers :many
+SELECT id, worker_host, worker_port, worker_available, concurrency, capabilities, last_heartbeat FROM worker
+WHERE last_heartbeat >= $1
+`
+
+func (q *Queries) GetActiveWorkers(ctx context.Context, lastHeartbeat pgtype.Timestamp) ([]Worker, error) {
+	rows, err := q.db.Query(ctx, getActiveWorkers, lastHeartbeat)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Worker
+	for rows.Next() {
+		var i Worker
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkerHost,
+			&i.WorkerPort,
+			&i.WorkerAvailable,
+			&i.Concurrency,
+			&i.Capabilities,
+			&i.LastHeartbeat,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAvailableWorker = `-- name: GetAvailableWorker :one
-SELECT id, worker_host, worker_port, worker_available FROM worker WHERE (
+SELECT id, worker_host, worker_port, worker_available, concurrency, capabilities, last_heartbeat FROM worker WHERE (
     worker_available = TRUE
 ) LIMIT 1
 `
@@ -93,8 +129,44 @@ func (q *Queries) GetAvailableWorker(ctx context.Context) (Worker, error) {
 		&i.WorkerHost,
 		&i.WorkerPort,
 		&i.WorkerAvailable,
+		&i.Concurrency,
+		&i.Capabilities,
+		&i.LastHeartbeat,
 	)
 	return i, err
+}
+
+const getDeadWorkers = `-- name: GetDeadWorkers :many
+SELECT id, worker_host, worker_port, worker_available, concurrency, capabilities, last_heartbeat FROM worker
+WHERE last_heartbeat < $1
+`
+
+func (q *Queries) GetDeadWorkers(ctx context.Context, lastHeartbeat pgtype.Timestamp) ([]Worker, error) {
+	rows, err := q.db.Query(ctx, getDeadWorkers, lastHeartbeat)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Worker
+	for rows.Next() {
+		var i Worker
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkerHost,
+			&i.WorkerPort,
+			&i.WorkerAvailable,
+			&i.Concurrency,
+			&i.Capabilities,
+			&i.LastHeartbeat,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markWorkerAvailable = `-- name: MarkWorkerAvailable :exec
@@ -115,7 +187,7 @@ UPDATE worker
 SET worker_available = FALSE
 WHERE id = $1
   AND worker_available = TRUE
-RETURNING id, worker_host, worker_port, worker_available
+RETURNING id, worker_host, worker_port, worker_available, concurrency, capabilities, last_heartbeat
 `
 
 func (q *Queries) MarkWorkerUnavailable(ctx context.Context, id pgtype.UUID) (Worker, error) {
@@ -126,6 +198,60 @@ func (q *Queries) MarkWorkerUnavailable(ctx context.Context, id pgtype.UUID) (Wo
 		&i.WorkerHost,
 		&i.WorkerPort,
 		&i.WorkerAvailable,
+		&i.Concurrency,
+		&i.Capabilities,
+		&i.LastHeartbeat,
 	)
 	return i, err
+}
+
+const registerWorkerWithMetadata = `-- name: RegisterWorkerWithMetadata :one
+INSERT INTO worker (
+    worker_host,
+    worker_port,
+    worker_available,
+    concurrency,
+    capabilities,
+    last_heartbeat
+) VALUES (
+    $1, $2, TRUE, $3, $4, NOW()
+) RETURNING id, worker_host, worker_port, worker_available, concurrency, capabilities, last_heartbeat
+`
+
+type RegisterWorkerWithMetadataParams struct {
+	WorkerHost   string
+	WorkerPort   string
+	Concurrency  int32
+	Capabilities []string
+}
+
+func (q *Queries) RegisterWorkerWithMetadata(ctx context.Context, arg RegisterWorkerWithMetadataParams) (Worker, error) {
+	row := q.db.QueryRow(ctx, registerWorkerWithMetadata,
+		arg.WorkerHost,
+		arg.WorkerPort,
+		arg.Concurrency,
+		arg.Capabilities,
+	)
+	var i Worker
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerHost,
+		&i.WorkerPort,
+		&i.WorkerAvailable,
+		&i.Concurrency,
+		&i.Capabilities,
+		&i.LastHeartbeat,
+	)
+	return i, err
+}
+
+const updateWorkerHeartbeat = `-- name: UpdateWorkerHeartbeat :exec
+UPDATE worker
+SET last_heartbeat = NOW()
+WHERE id = $1
+`
+
+func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, updateWorkerHeartbeat, id)
+	return err
 }

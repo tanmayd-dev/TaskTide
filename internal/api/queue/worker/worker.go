@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/minio/minio-go/v7"
@@ -41,10 +40,18 @@ func handleCompletion(queries *db.Queries, ctx context.Context, minioClient *min
 			http.Error(w, "Could not parse form", http.StatusBadRequest)
 			return
 		}
-		err = repositories.CreateTaskAttempt(ctx, completion, w, queries)
+
+		taskExecution, err := repositories.GetTaskExecution(ctx, queries, completion.ID)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
-			http.Error(w, "Could not parse form", http.StatusBadRequest)
+			http.Error(w, "Could not get task execution", http.StatusInternalServerError)
+			return
+		}
+
+		err = repositories.CreateTaskAttempt(ctx, queries, completion)
+		if err != nil {
+			log.Printf("%v\n", err.Error())
+			http.Error(w, "Could not create task attempt", http.StatusInternalServerError)
 			return
 		}
 

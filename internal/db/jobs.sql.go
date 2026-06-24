@@ -367,12 +367,12 @@ RETURNING id, queue_name, payload, max_retries, retry_count, delay, scheduled_at
 `
 
 type IncrementJobRetryCountParams struct {
-	Column1 pgtype.Timestamp
-	ID      pgtype.UUID
+	ScheduledAt pgtype.Timestamp
+	ID          pgtype.UUID
 }
 
 func (q *Queries) IncrementJobRetryCount(ctx context.Context, arg IncrementJobRetryCountParams) (Job, error) {
-	row := q.db.QueryRow(ctx, incrementJobRetryCount, arg.Column1, arg.ID)
+	row := q.db.QueryRow(ctx, incrementJobRetryCount, arg.ScheduledAt, arg.ID)
 	var i Job
 	err := row.Scan(
 		&i.ID,

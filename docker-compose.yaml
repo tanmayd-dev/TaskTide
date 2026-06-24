@@ -26,15 +26,17 @@ services:
       - "9001:9001"
 
   migration:
-    image: golang:1.26.3
+    build:
+      context: .
+      dockerfile: migrations.DOCKERFILE
     volumes:
-      - .:/app
+      - ./migrations:/app/migrations
     working_dir: /app
     environment:
       - GOOSE_DRIVER=postgres
       - GOOSE_DBSTRING=postgres://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@postgres:5432/TaskTide?sslmode=disable
       - GOOSE_MIGRATION_DIR=migrations
-    command: sh -c "go install github.com/pressly/goose/v3/cmd/goose@latest && goose up"
+    command: up
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,6 +102,16 @@ services:
       - NOOP_TIME=${NOOP_TIME}
     depends_on:
       queue:
+        condition: service_started
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html
+    depends_on:
+      api:
         condition: service_started
 
 volumes:

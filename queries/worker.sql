@@ -38,7 +38,6 @@ WHERE (
 DELETE FROM worker WHERE (
     id = $1
 );
-
 -- name: RegisterWorkerWithMetadata :one
 INSERT INTO worker (
     worker_host,

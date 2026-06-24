@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #09090b;
+  
+  --card: #ffffff;
+  --card-foreground: #09090b;
+  
+  --popover: #ffffff;
+  --popover-foreground: #09090b;
+  
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+  
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #18181b;
+  
+  --node-bg: #ffffff;
+  --node-border: #e4e4e7;
+  --node-selected: #2563eb;
+  
+  --state-idle: #71717a;
+  --state-running: #ca8a04;
+  --state-completed: #16a34a;
+  --state-failed: #dc2626;
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  
+  --card: #09090b;
+  --card-foreground: #fafafa;
+  
+  --popover: #09090b;
+  --popover-foreground: #fafafa;
+  
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  
+  --accent: #3b82f6;
+  --accent-foreground: #ffffff;
+  
+  --destructive: #7f1d1d;
+  --destructive-foreground: #fafafa;
+  
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #d4d4d8;
+  
+  --node-bg: #18181b;
+  --node-border: #27272a;
+  --node-selected: #3b82f6;
+  
+  --state-idle: #a1a1aa;
+  --state-running: #ca8a04;
+  --state-completed: #16a34a;
+  --state-failed: #dc2626;
+}
+
+/* Base resets & layouts */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-radius: 0px !important; /* Enforce strict sharp edges everywhere */
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--background);
+  color: var(--foreground);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* Custom XYFlow Node customization */
+.react-flow__node {
+  padding: 0;
+  background: transparent;
+}
+
+.react-flow__handle {
+  width: 8px !important;
+  height: 8px !important;
+  background-color: var(--background) !important;
+  border: 1.5px solid var(--muted-foreground) !important;
+  border-radius: 0% !important; /* Make handles square */
+}
+
+.react-flow__handle:hover {
+  border-color: var(--accent) !important;
+  background-color: var(--accent) !important;
+}
+
+.react-flow__handle-connecting {
+  background-color: var(--accent) !important;
+}
+
+/* XYFlow Straight edge styling override */
+.react-flow__edge-path {
+  stroke: var(--border);
+  stroke-width: 1.5;
+  transition: stroke 0.15s ease, stroke-width 0.15s ease;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--node-selected);
+  stroke-width: 2.5;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: flow-wire 1s linear infinite;
+  stroke: var(--state-running);
+}
+
+@keyframes flow-wire {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.react-flow__controls {
+  box-shadow: none !important;
+  border: 1px solid var(--border) !important;
+  background-color: var(--background) !important;
+}
+
+.react-flow__controls-button {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+  border-bottom: 1px solid var(--border) !important;
+  fill: currentColor !important;
+}
+
+.react-flow__controls-button:hover {
+  background-color: var(--muted) !important;
+}
+
+.react-flow__minimap {
+  background-color: var(--background) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* Custom CSS helpers for minimal panels */
+.glass-header {
+  border-bottom: 1px solid var(--border);
+  background-color: rgba(var(--background), 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.code-text {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}

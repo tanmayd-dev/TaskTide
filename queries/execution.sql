@@ -55,3 +55,17 @@ task_assigned = FALSE
 WHERE (
     id = $1
 );
+
+-- name: GetWorkflowTaskExecutions :many
+SELECT * FROM task_execution WHERE (
+    workflow_id = $1
+);
+
+-- name: UnassignTask :exec
+UPDATE task_execution SET
+task_assigned = FALSE,
+task_worker = NULL
+WHERE (
+    id = $1
+);
+

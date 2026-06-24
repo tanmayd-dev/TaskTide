@@ -8,9 +8,57 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type DeadLetterJob struct {
+	ID          pgtype.UUID
+	JobID       pgtype.UUID
+	FailedAt    pgtype.Timestamp
+	ErrorReason pgtype.Text
+}
+
+type Execution struct {
+	ID         pgtype.UUID
+	JobID      pgtype.UUID
+	WorkerID   string
+	StartedAt  pgtype.Timestamp
+	FinishedAt pgtype.Timestamp
+	Status     string
+}
+
 type InputFile struct {
 	ID       pgtype.UUID
 	FileName string
+}
+
+type Job struct {
+	ID              pgtype.UUID
+	QueueName       string
+	Payload         []byte
+	MaxRetries      int32
+	RetryCount      int32
+	Delay           int32
+	ScheduledAt     pgtype.Timestamp
+	Priority        int32
+	Status          string
+	IdempotencyKey  pgtype.Text
+	TaskExecutionID pgtype.UUID
+	CreatedAt       pgtype.Timestamp
+	UpdatedAt       pgtype.Timestamp
+}
+
+type Queue struct {
+	ID        pgtype.UUID
+	Name      string
+	Paused    bool
+	CreatedAt pgtype.Timestamp
+}
+
+type Retry struct {
+	ID            pgtype.UUID
+	JobID         pgtype.UUID
+	ExecutionID   pgtype.UUID
+	AttemptNumber int32
+	RetryAt       pgtype.Timestamp
+	ErrorReason   pgtype.Text
 }
 
 type TaskAttempt struct {
@@ -59,6 +107,18 @@ type Worker struct {
 	WorkerHost      string
 	WorkerPort      string
 	WorkerAvailable bool
+	Concurrency     int32
+	Capabilities    []string
+	LastHeartbeat   pgtype.Timestamp
+}
+
+type WorkerLease struct {
+	ID        pgtype.UUID
+	JobID     pgtype.UUID
+	WorkerID  string
+	LeasedAt  pgtype.Timestamp
+	ExpiresAt pgtype.Timestamp
+	Completed bool
 }
 
 type WorkflowDefinition struct {

@@ -82,3 +82,8 @@ SELECT count(*) FROM jobs WHERE status = 'running';
 -- name: GetQueueDepth :one
 SELECT count(*) FROM jobs WHERE queue_name = $1 AND status = 'pending';
 
+-- name: GetActiveExecution :one
+SELECT * FROM executions
+WHERE job_id = $1 AND worker_id = $2 AND finished_at IS NULL
+ORDER BY started_at DESC LIMIT 1;
+

@@ -1,0 +1,9 @@
+-- +goose Up
+ALTER TABLE worker ADD COLUMN IF NOT EXISTS concurrency INT NOT NULL DEFAULT 1;
+ALTER TABLE worker ADD COLUMN IF NOT EXISTS capabilities TEXT[] DEFAULT '{}';
+ALTER TABLE worker ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMP NOT NULL DEFAULT NOW();
+
+-- +goose Down
+ALTER TABLE worker DROP COLUMN IF EXISTS concurrency;
+ALTER TABLE worker DROP COLUMN IF EXISTS capabilities;
+ALTER TABLE worker DROP COLUMN IF EXISTS last_heartbeat;

@@ -38,6 +38,9 @@ func main() {
 	defer pool.Close()
 	queries := db.New(pool)
 
+	// Start background recovery loop
+	queueService.StartRecoveryLoop(ctx, queries)
+
 	// Setup MinIO connection
 	minioClient, err := minio.New(
 		fmt.Sprintf("%v:%v", os.Getenv("MINIO_HOST"), os.Getenv("MINIO_PORT")),

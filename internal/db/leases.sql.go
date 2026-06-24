@@ -122,6 +122,37 @@ func (q *Queries) GetLease(ctx context.Context, jobID pgtype.UUID) (WorkerLease,
 	return i, err
 }
 
+const getLeasesByWorker = `-- name: GetLeasesByWorker :many
+SELECT id, job_id, worker_id, leased_at, expires_at, completed FROM worker_leases WHERE worker_id = $1 AND completed = FALSE
+`
+
+func (q *Queries) GetLeasesByWorker(ctx context.Context, workerID string) ([]WorkerLease, error) {
+	rows, err := q.db.Query(ctx, getLeasesByWorker, workerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkerLease
+	for rows.Next() {
+		var i WorkerLease
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.WorkerID,
+			&i.LeasedAt,
+			&i.ExpiresAt,
+			&i.Completed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markLeaseCompleted = `-- name: MarkLeaseCompleted :exec
 UPDATE worker_leases
 SET completed = TRUE

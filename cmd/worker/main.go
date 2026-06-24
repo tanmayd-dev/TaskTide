@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/tanmayd-dev/TaskTide/internal/observability"
 	"github.com/tanmayd-dev/TaskTide/internal/pb"
 	"github.com/tanmayd-dev/TaskTide/internal/service/workerService"
 	"google.golang.org/grpc"
@@ -21,6 +22,12 @@ func main() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Printf("Could not load .env\n")
+	}
+
+	// Initialize OpenTelemetry tracer
+	tp, err := observability.InitTracer("worker-service")
+	if err == nil {
+		defer tp.Shutdown(context.Background())
 	}
 
 	queueHost := os.Getenv("QUEUE_HOST")

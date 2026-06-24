@@ -14,8 +14,10 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tanmayd-dev/TaskTide/internal/api/queue"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
+	"github.com/tanmayd-dev/TaskTide/internal/observability"
 	"github.com/tanmayd-dev/TaskTide/internal/pb"
 	"github.com/tanmayd-dev/TaskTide/internal/service/queueService"
 	"google.golang.org/grpc"
@@ -74,11 +76,23 @@ func main() {
 		}
 	}()
 
+	// Initialize OpenTelemetry tracer
+	tp, err := observability.InitTracer("queue-service")
+	if err == nil {
+		defer tp.Shutdown(ctx)
+	}
+
+	// Start background metrics collector
+	observability.StartMetricsCollector(ctx, queries)
+
 	// Setup router
 	router := chi.NewRouter()
 
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
+
+	// Register Prometheus metrics endpoint
+	router.Handle("/metrics", promhttp.Handler())
 
 	router.Route(
 		"/", queue.Router(queries, ctx, minioClient),

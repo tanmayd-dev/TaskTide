@@ -14,6 +14,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
+	"github.com/tanmayd-dev/TaskTide/internal/observability"
 	"github.com/tanmayd-dev/TaskTide/internal/pb"
 	"github.com/tanmayd-dev/TaskTide/internal/repositories"
 	"github.com/tanmayd-dev/TaskTide/internal/utils"
@@ -181,9 +182,18 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 }
 
 func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) (*pb.CompleteResponse, error) {
+	ctx, span := observability.Tracer.Start(ctx, "CompleteJob")
+	defer span.End()
+
 	jobUUID, err := utils.StringToUUID(req.JobId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid job ID: %v", err)
+	}
+
+	var queueName string = "default"
+	job, err := h.Queries.GetJob(ctx, jobUUID)
+	if err == nil {
+		queueName = job.QueueName
 	}
 
 	// Mark lease completed and release it
@@ -191,19 +201,24 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 	_ = h.Queries.ReleaseLease(ctx, jobUUID)
 
 	// Update execution status
+	execStatus := "succeeded"
+	if !req.Success {
+		execStatus = "failed"
+	}
+
 	exec, err := h.Queries.GetActiveExecution(ctx, db.GetActiveExecutionParams{
 		JobID:    jobUUID,
 		WorkerID: req.WorkerId,
 	})
 	if err == nil {
-		execStatus := "succeeded"
-		if !req.Success {
-			execStatus = "failed"
-		}
 		_ = h.Queries.UpdateExecutionStatus(ctx, db.UpdateExecutionStatusParams{
 			Status: execStatus,
 			ID:     exec.ID,
 		})
+
+		// Record latency
+		duration := time.Since(exec.StartedAt.Time).Seconds()
+		observability.JobDurationHistogram.WithLabelValues(queueName, execStatus).Observe(duration)
 	}
 
 	if req.Success {
@@ -211,9 +226,8 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 			Status: "completed",
 			ID:     jobUUID,
 		})
+		observability.JobExecutionCounter.WithLabelValues(queueName, "succeeded").Inc()
 	} else {
-		// Fetch current job details to check retries
-		job, err := h.Queries.GetJob(ctx, jobUUID)
 		if err == nil {
 			if job.RetryCount < job.MaxRetries {
 				// Calculate exponential backoff duration: 2^(retry_count) * 2 seconds
@@ -224,6 +238,9 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 					ID:          jobUUID,
 				})
 				log.Printf("CompleteJob: Job %s failed. Retry count incremented to %d. Scheduled for %v.\n", jobUUID.String(), job.RetryCount+1, nextExec)
+
+				observability.JobExecutionCounter.WithLabelValues(queueName, "failed_retry").Inc()
+				observability.RetryCounter.WithLabelValues(queueName).Inc()
 
 				// Log retry attempt
 				if exec.ID.Valid {
@@ -245,13 +262,13 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 					ErrorReason: pgtype.Text{String: req.ErrorReason, Valid: req.ErrorReason != ""},
 				})
 				log.Printf("CompleteJob: Job %s failed and retries exhausted. Moved to DLQ.\n", jobUUID.String())
+				observability.JobExecutionCounter.WithLabelValues(queueName, "exhausted_dlq").Inc()
 			}
 		}
 	}
 
 	// Handle workflow task execution updates
-	job, err := h.Queries.GetJob(ctx, jobUUID)
-	if err == nil && job.TaskExecutionID.Valid {
+	if job.TaskExecutionID.Valid {
 		taskExec, err := h.Queries.GetTaskExecution(ctx, job.TaskExecutionID)
 		if err == nil {
 			taskExecModel := models.WorkerTaskExecution{
@@ -288,6 +305,18 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 }
 
 func (h *GrpcHandler) SubmitJob(ctx context.Context, req *pb.SubmitRequest) (*pb.SubmitResponse, error) {
+	ctx, span := observability.Tracer.Start(ctx, "SubmitJob")
+	defer span.End()
+
+	// Check Idempotency Key
+	if req.IdempotencyKey != "" {
+		existingJob, err := h.Queries.GetJobByIdempotencyKey(ctx, pgtype.Text{String: req.IdempotencyKey, Valid: true})
+		if err == nil {
+			log.Printf("SubmitJob: Idempotency hit! Returning existing job ID: %s\n", existingJob.ID.String())
+			return &pb.SubmitResponse{JobId: existingJob.ID.String(), Status: existingJob.Status}, nil
+		}
+	}
+
 	j, err := h.Queries.CreateJob(ctx, db.CreateJobParams{
 		QueueName:      req.QueueName,
 		Payload:        []byte(req.PayloadJson),
@@ -300,6 +329,9 @@ func (h *GrpcHandler) SubmitJob(ctx context.Context, req *pb.SubmitRequest) (*pb
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create job: %v", err)
 	}
+
+	observability.JobExecutionCounter.WithLabelValues(req.QueueName, "submitted").Inc()
+
 	return &pb.SubmitResponse{JobId: j.ID.String(), Status: j.Status}, nil
 }
 

@@ -62,10 +62,8 @@ type Worker struct {
 }
 
 type WorkflowDefinition struct {
-	ID             pgtype.UUID
-	WorkflowName   pgtype.Text
-	WorkflowInput  pgtype.UUID
-	WorkflowOutput pgtype.UUID
+	ID           pgtype.UUID
+	WorkflowName pgtype.Text
 }
 
 type WorkflowExecution struct {

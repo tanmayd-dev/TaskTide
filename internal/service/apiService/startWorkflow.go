@@ -16,11 +16,10 @@ import (
 )
 
 func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.Client, workflowID models.WorkflowDefinitionID) (models.WorkflowExecutionID, error) {
-	workflow, err := repositories.GetWorkflow(ctx, queries, workflowID)
+	_, err := repositories.GetWorkflow(ctx, queries, workflowID)
 	if err != nil {
 		return "", err
 	}
-	workflowInput := workflow.WorkflowInput
 
 	workflowExecution, err := repositories.CreateWorkflowExecution(ctx, queries, workflowID)
 	if err != nil {
@@ -70,9 +69,6 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 				if dependencyTask, ok := taskIDToModel[task.TaskInputTask]; ok && dependencyTask.TaskOutput != "" {
 					task.TaskInput = dependencyTask.TaskOutput
 				}
-			}
-			if task.TaskInput == "" && workflowInput != "" {
-				task.TaskInput = workflowInput
 			}
 			if task.TaskInput == "" {
 				inputFile, err := repositories.CreateDefaultNullFile(ctx, queries, minioClient, os.Getenv("FILES_BUCKET_NAME"))

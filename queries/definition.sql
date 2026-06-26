@@ -15,10 +15,6 @@ UPDATE task_definition
 SET task_output = $2
 WHERE id = $1;
 
--- name: UpdateWorkflowOutput :exec
-UPDATE workflow_definition
-SET workflow_output = $2
-WHERE id = $1;
 
 -- name: CreateTask :one
 INSERT INTO task_definition (
@@ -59,3 +55,6 @@ RETURNING *;
 -- name: GetTaskDependencies :many
 SELECT * FROM task_definition_depends
 WHERE task_id = $1;
+
+-- name: ListWorkflows :many
+SELECT * FROM workflow_definition;

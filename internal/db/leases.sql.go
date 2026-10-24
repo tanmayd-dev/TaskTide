@@ -27,7 +27,7 @@ RETURNING id, job_id, worker_id, leased_at, expires_at, completed
 type AcquireLeaseParams struct {
 	JobID     pgtype.UUID
 	WorkerID  string
-	ExpiresAt pgtype.Timestamp
+	ExpiresAt pgtype.Timestamptz
 }
 
 func (q *Queries) AcquireLease(ctx context.Context, arg AcquireLeaseParams) (WorkerLease, error) {
@@ -53,7 +53,7 @@ RETURNING id, job_id, worker_id, leased_at, expires_at, completed
 `
 
 type ExtendLeaseParams struct {
-	ExpiresAt pgtype.Timestamp
+	ExpiresAt pgtype.Timestamptz
 	JobID     pgtype.UUID
 }
 

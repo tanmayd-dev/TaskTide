@@ -147,7 +147,7 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 
 		// Try to lease the job
 		leaseDuration := 30 * time.Second
-		expiresAt := pgtype.Timestamp{Time: time.Now().Add(leaseDuration), Valid: true}
+		expiresAt := pgtype.Timestamptz{Time: time.Now().Add(leaseDuration), Valid: true}
 		_, err = h.Queries.AcquireLease(ctx, db.AcquireLeaseParams{
 			JobID:     j.ID,
 			WorkerID:  req.WorkerId,
@@ -244,7 +244,7 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 				backoffSec := 1 << (job.RetryCount) * 2
 				nextExec := time.Now().Add(time.Duration(backoffSec) * time.Second)
 				_, _ = h.Queries.IncrementJobRetryCount(ctx, db.IncrementJobRetryCountParams{
-					ScheduledAt: pgtype.Timestamp{Time: nextExec, Valid: true},
+					ScheduledAt: pgtype.Timestamptz{Time: nextExec, Valid: true},
 					ID:          jobUUID,
 				})
 				log.Printf("CompleteJob: Job %s failed. Retry count incremented to %d. Scheduled for %v.\n", jobUUID.String(), job.RetryCount+1, nextExec)
@@ -346,7 +346,7 @@ func (h *GrpcHandler) SubmitJob(ctx context.Context, req *pb.SubmitRequest) (*pb
 		Payload:        []byte(req.PayloadJson),
 		MaxRetries:     req.MaxRetries,
 		Delay:          req.DelaySeconds,
-		ScheduledAt:    pgtype.Timestamp{Time: time.Now().Add(time.Duration(req.DelaySeconds) * time.Second), Valid: true},
+		ScheduledAt:    pgtype.Timestamptz{Time: time.Now().Add(time.Duration(req.DelaySeconds) * time.Second), Valid: true},
 		Priority:       req.Priority,
 		IdempotencyKey: pgtype.Text{String: req.IdempotencyKey, Valid: req.IdempotencyKey != ""},
 	})
@@ -398,7 +398,7 @@ func (h *GrpcHandler) checkAndSubmitWorkflowJobs(ctx context.Context) {
 			Payload:         payloadBytes,
 			MaxRetries:      2,
 			Delay:           0,
-			ScheduledAt:     pgtype.Timestamp{Time: time.Now(), Valid: true},
+			ScheduledAt:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			Priority:        0,
 			IdempotencyKey:  pgtype.Text{String: "", Valid: false},
 			TaskExecutionID: pgtype.UUID{Bytes: task.ID.Bytes, Valid: true},

@@ -36,6 +36,47 @@ func (q *Queries) AddQueue(ctx context.Context, arg AddQueueParams) (Queue, erro
 	return i, err
 }
 
+const claimPendingJobs = `-- name: ClaimPendingJobs :many
+SELECT j.id, j.queue_name, j.payload, j.max_retries, j.retry_count, j.delay, j.scheduled_at, j.priority, j.status, j.idempotency_key, j.task_execution_id, j.created_at, j.updated_at FROM jobs j JOIN queues q ON j.queue_name = q.name
+WHERE j.status = 'pending' AND j.scheduled_at <= NOW() AND q.paused = FALSE
+ORDER BY j.priority DESC, j.scheduled_at ASC
+FOR UPDATE OF j SKIP LOCKED LIMIT $1
+`
+
+func (q *Queries) ClaimPendingJobs(ctx context.Context, limit int32) ([]Job, error) {
+	rows, err := q.db.Query(ctx, claimPendingJobs, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.ID,
+			&i.QueueName,
+			&i.Payload,
+			&i.MaxRetries,
+			&i.RetryCount,
+			&i.Delay,
+			&i.ScheduledAt,
+			&i.Priority,
+			&i.Status,
+			&i.IdempotencyKey,
+			&i.TaskExecutionID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createDeadLetterJob = `-- name: CreateDeadLetterJob :one
 INSERT INTO dead_letter_jobs (
     job_id, error_reason
@@ -101,7 +142,7 @@ type CreateJobParams struct {
 	Payload         []byte
 	MaxRetries      int32
 	Delay           int32
-	ScheduledAt     pgtype.Timestamp
+	ScheduledAt     pgtype.Timestamptz
 	Priority        int32
 	IdempotencyKey  pgtype.Text
 	TaskExecutionID pgtype.UUID
@@ -372,7 +413,7 @@ func (q *Queries) GetQueueDepth(ctx context.Context, queueName string) (int64, e
 const incrementJobRetryCount = `-- name: IncrementJobRetryCount :one
 UPDATE jobs
 SET retry_count = retry_count + 1,
-    scheduled_at = $1::TIMESTAMP,
+    scheduled_at = $1::TIMESTAMPTZ,
     status = 'pending',
     updated_at = NOW()
 WHERE id = $2
@@ -380,7 +421,7 @@ RETURNING id, queue_name, payload, max_retries, retry_count, delay, scheduled_at
 `
 
 type IncrementJobRetryCountParams struct {
-	ScheduledAt pgtype.Timestamp
+	ScheduledAt pgtype.Timestamptz
 	ID          pgtype.UUID
 }
 

@@ -22,7 +22,7 @@ INSERT INTO task_execution (
     workflow_id
 ) VALUES (
     $1, $2, FALSE, FALSE, $3, $4, $5
-) RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
+) RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id, task_failed
 `
 
 type CreateTaskExecutionParams struct {
@@ -51,6 +51,7 @@ func (q *Queries) CreateTaskExecution(ctx context.Context, arg CreateTaskExecuti
 		&i.TaskInput,
 		&i.TaskOutput,
 		&i.WorkflowID,
+		&i.TaskFailed,
 	)
 	return i, err
 }
@@ -71,7 +72,7 @@ func (q *Queries) CreateWorkflowExecution(ctx context.Context, workflowBase pgty
 }
 
 const getTaskExecution = `-- name: GetTaskExecution :one
-SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id, task_failed FROM task_execution
 WHERE id =  $1
 LIMIT 1
 `
@@ -88,12 +89,13 @@ func (q *Queries) GetTaskExecution(ctx context.Context, id pgtype.UUID) (TaskExe
 		&i.TaskInput,
 		&i.TaskOutput,
 		&i.WorkflowID,
+		&i.TaskFailed,
 	)
 	return i, err
 }
 
 const getTasksExecution = `-- name: GetTasksExecution :many
-SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution WHERE (
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id, task_failed FROM task_execution WHERE (
     id = $1
 )
 `
@@ -116,6 +118,7 @@ func (q *Queries) GetTasksExecution(ctx context.Context, id pgtype.UUID) ([]Task
 			&i.TaskInput,
 			&i.TaskOutput,
 			&i.WorkflowID,
+			&i.TaskFailed,
 		); err != nil {
 			return nil, err
 		}
@@ -128,30 +131,44 @@ func (q *Queries) GetTasksExecution(ctx context.Context, id pgtype.UUID) ([]Task
 }
 
 const getUnassignedTasks = `-- name: GetUnassignedTasks :one
-SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution A
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_failed, task_input, task_output, workflow_id FROM task_execution A
 WHERE (
     A.task_assigned = FALSE AND
     A.task_completed = FALSE AND
+    A.task_failed = FALSE AND
     NOT EXISTS (
         SELECT 1 FROM task_definition_depends d
         LEFT JOIN task_execution dep
             ON dep.workflow_id = A.workflow_id
             AND dep.task_base = d.task_depends_on
         WHERE d.task_id = A.task_base
-          AND (dep.task_completed = FALSE OR dep.id IS NULL)
+          AND (dep.task_completed = FALSE OR dep.task_failed = TRUE OR dep.id IS NULL)
     )
 ) LIMIT 1
 `
 
-func (q *Queries) GetUnassignedTasks(ctx context.Context) (TaskExecution, error) {
+type GetUnassignedTasksRow struct {
+	ID            pgtype.UUID
+	TaskBase      pgtype.UUID
+	TaskWorker    pgtype.UUID
+	TaskAssigned  bool
+	TaskCompleted bool
+	TaskFailed    bool
+	TaskInput     pgtype.UUID
+	TaskOutput    pgtype.UUID
+	WorkflowID    pgtype.UUID
+}
+
+func (q *Queries) GetUnassignedTasks(ctx context.Context) (GetUnassignedTasksRow, error) {
 	row := q.db.QueryRow(ctx, getUnassignedTasks)
-	var i TaskExecution
+	var i GetUnassignedTasksRow
 	err := row.Scan(
 		&i.ID,
 		&i.TaskBase,
 		&i.TaskWorker,
 		&i.TaskAssigned,
 		&i.TaskCompleted,
+		&i.TaskFailed,
 		&i.TaskInput,
 		&i.TaskOutput,
 		&i.WorkflowID,
@@ -173,7 +190,7 @@ func (q *Queries) GetWorkflowExecution(ctx context.Context, id pgtype.UUID) (Wor
 }
 
 const getWorkflowTaskExecutions = `-- name: GetWorkflowTaskExecutions :many
-SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution WHERE (
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id, task_failed FROM task_execution WHERE (
     workflow_id = $1
 )
 `
@@ -196,6 +213,7 @@ func (q *Queries) GetWorkflowTaskExecutions(ctx context.Context, workflowID pgty
 			&i.TaskInput,
 			&i.TaskOutput,
 			&i.WorkflowID,
+			&i.TaskFailed,
 		); err != nil {
 			return nil, err
 		}
@@ -229,6 +247,21 @@ WHERE (
 
 func (q *Queries) MarkTaskComplete(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, markTaskComplete, id)
+	return err
+}
+
+const markTaskFailed = `-- name: MarkTaskFailed :exec
+UPDATE task_execution SET
+task_failed = TRUE,
+task_assigned = FALSE,
+task_completed = FALSE
+WHERE (
+    id = $1
+)
+`
+
+func (q *Queries) MarkTaskFailed(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markTaskFailed, id)
 	return err
 }
 

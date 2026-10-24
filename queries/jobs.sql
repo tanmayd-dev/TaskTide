@@ -40,7 +40,7 @@ RETURNING *;
 -- name: IncrementJobRetryCount :one
 UPDATE jobs
 SET retry_count = retry_count + 1,
-    scheduled_at = sqlc.arg(scheduled_at)::TIMESTAMP,
+    scheduled_at = sqlc.arg(scheduled_at)::TIMESTAMPTZ,
     status = 'pending',
     updated_at = NOW()
 WHERE id = sqlc.arg(id)

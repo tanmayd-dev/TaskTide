@@ -60,7 +60,7 @@ func enqueue(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 					Payload:         payloadBytes,
 					MaxRetries:      2,
 					Delay:           0,
-					ScheduledAt:     pgtype.Timestamp{Time: time.Now(), Valid: true},
+					ScheduledAt:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 					Priority:        0,
 					IdempotencyKey:  pgtype.Text{String: "", Valid: false},
 					TaskExecutionID: taskExecUUID,

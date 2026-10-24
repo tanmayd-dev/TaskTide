@@ -11,7 +11,7 @@ import (
 type DeadLetterJob struct {
 	ID          pgtype.UUID
 	JobID       pgtype.UUID
-	FailedAt    pgtype.Timestamp
+	FailedAt    pgtype.Timestamptz
 	ErrorReason pgtype.Text
 }
 
@@ -19,8 +19,8 @@ type Execution struct {
 	ID         pgtype.UUID
 	JobID      pgtype.UUID
 	WorkerID   string
-	StartedAt  pgtype.Timestamp
-	FinishedAt pgtype.Timestamp
+	StartedAt  pgtype.Timestamptz
+	FinishedAt pgtype.Timestamptz
 	Status     string
 }
 
@@ -36,20 +36,20 @@ type Job struct {
 	MaxRetries      int32
 	RetryCount      int32
 	Delay           int32
-	ScheduledAt     pgtype.Timestamp
+	ScheduledAt     pgtype.Timestamptz
 	Priority        int32
 	Status          string
 	IdempotencyKey  pgtype.Text
 	TaskExecutionID pgtype.UUID
-	CreatedAt       pgtype.Timestamp
-	UpdatedAt       pgtype.Timestamp
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
 }
 
 type Queue struct {
 	ID        pgtype.UUID
 	Name      string
 	Paused    bool
-	CreatedAt pgtype.Timestamp
+	CreatedAt pgtype.Timestamptz
 }
 
 type Retry struct {
@@ -57,7 +57,7 @@ type Retry struct {
 	JobID         pgtype.UUID
 	ExecutionID   pgtype.UUID
 	AttemptNumber int32
-	RetryAt       pgtype.Timestamp
+	RetryAt       pgtype.Timestamptz
 	ErrorReason   pgtype.Text
 }
 
@@ -94,6 +94,7 @@ type TaskExecution struct {
 	TaskInput     pgtype.UUID
 	TaskOutput    pgtype.UUID
 	WorkflowID    pgtype.UUID
+	TaskFailed    bool
 }
 
 type TaskExecutionDepend struct {
@@ -116,8 +117,8 @@ type WorkerLease struct {
 	ID        pgtype.UUID
 	JobID     pgtype.UUID
 	WorkerID  string
-	LeasedAt  pgtype.Timestamp
-	ExpiresAt pgtype.Timestamp
+	LeasedAt  pgtype.Timestamptz
+	ExpiresAt pgtype.Timestamptz
 	Completed bool
 }
 

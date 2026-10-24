@@ -47,7 +47,7 @@ SET task_assigned = TRUE,
       task_worker = $1
 WHERE id = $2
   AND task_assigned = FALSE
-RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
+RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id, task_failed
 `
 
 type AssignWorkerToTaskParams struct {
@@ -67,6 +67,7 @@ func (q *Queries) AssignWorkerToTask(ctx context.Context, arg AssignWorkerToTask
 		&i.TaskInput,
 		&i.TaskOutput,
 		&i.WorkflowID,
+		&i.TaskFailed,
 	)
 	return i, err
 }

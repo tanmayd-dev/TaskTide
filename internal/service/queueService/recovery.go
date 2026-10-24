@@ -27,7 +27,7 @@ func StartRecoveryLoop(ctx context.Context, queries *db.Queries) {
 
 func recoverDeadWorkers(ctx context.Context, queries *db.Queries) {
 	threshold := time.Now().Add(-15 * time.Second)
-	thresholdTimestamp := pgtype.Timestamp{Time: threshold, Valid: true}
+	thresholdTimestamp := pgtype.Timestamptz{Time: threshold, Valid: true}
 
 	deadWorkers, err := queries.GetDeadWorkers(ctx, thresholdTimestamp)
 	if err != nil {
@@ -85,7 +85,7 @@ func recoverExpiredLeases(ctx context.Context, queries *db.Queries) {
 			if job.RetryCount < job.MaxRetries {
 				nextExec := time.Now() // retry immediately
 				_, _ = queries.IncrementJobRetryCount(ctx, db.IncrementJobRetryCountParams{
-					ScheduledAt: pgtype.Timestamp{Time: nextExec, Valid: true},
+					ScheduledAt: pgtype.Timestamptz{Time: nextExec, Valid: true},
 					ID:          lease.JobID,
 				})
 				log.Printf("Recovery: Requeued job %s (attempt %d/%d)\n", lease.JobID.String(), job.RetryCount+1, job.MaxRetries)

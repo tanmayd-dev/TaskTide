@@ -12,26 +12,23 @@ import (
 )
 
 const acquireLease = `-- name: AcquireLease :one
-INSERT INTO worker_leases (
-    job_id, worker_id, expires_at
-) VALUES (
-    $1, $2, $3
-) ON CONFLICT (job_id) DO UPDATE SET
-    worker_id = EXCLUDED.worker_id,
-    expires_at = EXCLUDED.expires_at,
-    leased_at = NOW(),
-    completed = FALSE
+INSERT INTO worker_leases (job_id, worker_id, expires_at)
+VALUES ($1, $2, NOW() + $3::INTERVAL)
+ON CONFLICT (job_id) DO UPDATE SET
+  worker_id = EXCLUDED.worker_id, expires_at = EXCLUDED.expires_at,
+  leased_at = NOW(), completed = FALSE
+WHERE worker_leases.completed = TRUE OR worker_leases.expires_at < NOW()
 RETURNING id, job_id, worker_id, leased_at, expires_at, completed
 `
 
 type AcquireLeaseParams struct {
-	JobID     pgtype.UUID
-	WorkerID  string
-	ExpiresAt pgtype.Timestamptz
+	JobID         pgtype.UUID
+	WorkerID      string
+	LeaseDuration pgtype.Interval
 }
 
 func (q *Queries) AcquireLease(ctx context.Context, arg AcquireLeaseParams) (WorkerLease, error) {
-	row := q.db.QueryRow(ctx, acquireLease, arg.JobID, arg.WorkerID, arg.ExpiresAt)
+	row := q.db.QueryRow(ctx, acquireLease, arg.JobID, arg.WorkerID, arg.LeaseDuration)
 	var i WorkerLease
 	err := row.Scan(
 		&i.ID,
@@ -45,20 +42,37 @@ func (q *Queries) AcquireLease(ctx context.Context, arg AcquireLeaseParams) (Wor
 }
 
 const extendLease = `-- name: ExtendLease :one
-UPDATE worker_leases
-SET expires_at = $1
-WHERE job_id = $2
-  AND completed = FALSE
+UPDATE worker_leases SET expires_at = NOW() + $1::INTERVAL
+WHERE job_id = $2 AND worker_id = $3 AND completed = FALSE
 RETURNING id, job_id, worker_id, leased_at, expires_at, completed
 `
 
 type ExtendLeaseParams struct {
-	ExpiresAt pgtype.Timestamptz
-	JobID     pgtype.UUID
+	ExtensionInterval pgtype.Interval
+	JobID             pgtype.UUID
+	WorkerID          string
 }
 
 func (q *Queries) ExtendLease(ctx context.Context, arg ExtendLeaseParams) (WorkerLease, error) {
-	row := q.db.QueryRow(ctx, extendLease, arg.ExpiresAt, arg.JobID)
+	row := q.db.QueryRow(ctx, extendLease, arg.ExtensionInterval, arg.JobID, arg.WorkerID)
+	var i WorkerLease
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.WorkerID,
+		&i.LeasedAt,
+		&i.ExpiresAt,
+		&i.Completed,
+	)
+	return i, err
+}
+
+const getActiveLease = `-- name: GetActiveLease :one
+SELECT id, job_id, worker_id, leased_at, expires_at, completed FROM worker_leases WHERE job_id = $1 AND completed = FALSE
+`
+
+func (q *Queries) GetActiveLease(ctx context.Context, jobID pgtype.UUID) (WorkerLease, error) {
+	row := q.db.QueryRow(ctx, getActiveLease, jobID)
 	var i WorkerLease
 	err := row.Scan(
 		&i.ID,

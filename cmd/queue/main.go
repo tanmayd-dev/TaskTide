@@ -71,7 +71,11 @@ func main() {
 		log.Fatalf("failed to listen for gRPC: %v", err)
 	}
 	grpcServer := grpc.NewServer()
-	pb.RegisterTaskTideServiceServer(grpcServer, &queueService.GrpcHandler{Queries: queries, MinioClient: minioClient})
+	pb.RegisterTaskTideServiceServer(grpcServer, &queueService.GrpcHandler{
+		Pool:        pool,
+		Queries:     queries,
+		MinioClient: minioClient,
+	})
 	log.Printf("Starting gRPC server on port %s...\n", grpcPort)
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {

@@ -1,23 +1,21 @@
 -- name: AcquireLease :one
-INSERT INTO worker_leases (
-    job_id, worker_id, expires_at
-) VALUES (
-    $1, $2, $3
-) ON CONFLICT (job_id) DO UPDATE SET
-    worker_id = EXCLUDED.worker_id,
-    expires_at = EXCLUDED.expires_at,
-    leased_at = NOW(),
-    completed = FALSE
+INSERT INTO worker_leases (job_id, worker_id, expires_at)
+VALUES ($1, $2, NOW() + sqlc.arg(lease_duration)::INTERVAL)
+ON CONFLICT (job_id) DO UPDATE SET
+  worker_id = EXCLUDED.worker_id, expires_at = EXCLUDED.expires_at,
+  leased_at = NOW(), completed = FALSE
+WHERE worker_leases.completed = TRUE OR worker_leases.expires_at < NOW()
 RETURNING *;
 
 -- name: GetLease :one
 SELECT * FROM worker_leases WHERE job_id = $1;
 
+-- name: GetActiveLease :one
+SELECT * FROM worker_leases WHERE job_id = $1 AND completed = FALSE;
+
 -- name: ExtendLease :one
-UPDATE worker_leases
-SET expires_at = $1
-WHERE job_id = $2
-  AND completed = FALSE
+UPDATE worker_leases SET expires_at = NOW() + sqlc.arg(extension_interval)::INTERVAL
+WHERE job_id = sqlc.arg(job_id) AND worker_id = sqlc.arg(worker_id) AND completed = FALSE
 RETURNING *;
 
 -- name: ReleaseLease :exec

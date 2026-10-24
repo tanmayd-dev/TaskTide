@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 	"github.com/tanmayd-dev/TaskTide/internal/models"
@@ -23,8 +24,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const LeaseDuration = 30 * time.Second
+
+func durationToInterval(d time.Duration) pgtype.Interval {
+	return pgtype.Interval{
+		Microseconds: d.Microseconds(),
+		Valid:        true,
+	}
+}
+
 type GrpcHandler struct {
 	pb.UnimplementedTaskTideServiceServer
+	Pool        *pgxpool.Pool
 	Queries     *db.Queries
 	MinioClient *minio.Client
 }
@@ -66,16 +77,34 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 	// Update worker heartbeat on poll
 	_ = h.Queries.UpdateWorkerHeartbeat(ctx, workerUUID)
 
-	pendingJobs, err := h.Queries.GetPendingJobs(ctx)
+	if req.FreeSlots <= 0 {
+		return &pb.PollResponse{}, nil
+	}
+	limit := req.FreeSlots
+	if limit <= 0 {
+		limit = 1
+	}
+
+	if h.Pool == nil {
+		return nil, status.Errorf(codes.Internal, "database pool is not configured")
+	}
+
+	tx, err := h.Pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get pending jobs: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	qtx := db.New(tx)
+	pendingJobs, err := qtx.ClaimPendingJobs(ctx, limit)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to claim pending jobs: %v", err)
 	}
 
 	var leasedJobs []*pb.Job
-	slotsRemaining := req.FreeSlots
-	if slotsRemaining <= 0 {
-		slotsRemaining = 1
-	}
+	slotsRemaining := limit
 
 	for _, j := range pendingJobs {
 		if slotsRemaining <= 0 {
@@ -89,12 +118,12 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 
 		if j.TaskExecutionID.Valid {
 			// Workflow task - get its task definition type
-			taskExec, err := h.Queries.GetTaskExecution(ctx, j.TaskExecutionID)
+			taskExec, err := qtx.GetTaskExecution(ctx, j.TaskExecutionID)
 			if err == nil {
-				taskDef, err := h.Queries.GetTask(ctx, taskExec.TaskBase)
+				taskDef, err := qtx.GetTask(ctx, taskExec.TaskBase)
 				if err == nil {
 					requiredCapability = taskDef.TaskType
-					
+
 					// Read file content from MinIO
 					var inputContent string
 					if taskExec.TaskInput.Valid {
@@ -102,7 +131,7 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 						if bucketName == "" {
 							bucketName = "files"
 						}
-						object, _, err := repositories.GetFile(ctx, h.Queries, models.InputFileID(taskExec.TaskInput.String()), h.MinioClient, bucketName)
+						object, _, err := repositories.GetFile(ctx, qtx, models.InputFileID(taskExec.TaskInput.String()), h.MinioClient, bucketName)
 						if err == nil {
 							var contentBytes []byte
 							buf := new(bytes.Buffer)
@@ -146,29 +175,32 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 		}
 
 		// Try to lease the job
-		leaseDuration := 30 * time.Second
-		expiresAt := pgtype.Timestamptz{Time: time.Now().Add(leaseDuration), Valid: true}
-		_, err = h.Queries.AcquireLease(ctx, db.AcquireLeaseParams{
-			JobID:     j.ID,
-			WorkerID:  req.WorkerId,
-			ExpiresAt: expiresAt,
+		_, err = qtx.AcquireLease(ctx, db.AcquireLeaseParams{
+			JobID:         j.ID,
+			WorkerID:      req.WorkerId,
+			LeaseDuration: durationToInterval(LeaseDuration),
 		})
 		if err != nil {
-			// Already leased by another worker
-			continue
+			return nil, status.Errorf(codes.Internal, "failed to acquire lease: %v", err)
 		}
 
 		// Update job status to 'running'
-		_, _ = h.Queries.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
+		_, err = qtx.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
 			Status: "running",
 			ID:     j.ID,
 		})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to update job status: %v", err)
+		}
 
 		// Create execution record
-		_, _ = h.Queries.CreateExecution(ctx, db.CreateExecutionParams{
+		_, err = qtx.CreateExecution(ctx, db.CreateExecutionParams{
 			JobID:    j.ID,
 			WorkerID: req.WorkerId,
 		})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to create execution: %v", err)
+		}
 
 		leasedJobs = append(leasedJobs, &pb.Job{
 			Id:              j.ID.String(),
@@ -182,6 +214,10 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 		slotsRemaining--
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
+	}
+
 	return &pb.PollResponse{Jobs: leasedJobs}, nil
 }
 
@@ -192,6 +228,11 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 	jobUUID, err := utils.StringToUUID(req.JobId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid job ID: %v", err)
+	}
+
+	lease, err := h.Queries.GetActiveLease(ctx, jobUUID)
+	if err != nil || lease.WorkerID != req.WorkerId || lease.Completed {
+		return nil, status.Errorf(codes.FailedPrecondition, "worker does not hold active lease for job")
 	}
 
 	var queueName string = "default"
@@ -325,6 +366,29 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 	}
 
 	return &pb.CompleteResponse{Success: true}, nil
+}
+
+func (h *GrpcHandler) ExtendLease(ctx context.Context, req *pb.ExtendLeaseRequest) (*pb.ExtendLeaseResponse, error) {
+	jobUUID, err := utils.StringToUUID(req.JobId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid job ID: %v", err)
+	}
+
+	extensionSeconds := req.ExtensionSeconds
+	if extensionSeconds <= 0 {
+		extensionSeconds = int32(LeaseDuration.Seconds())
+	}
+
+	_, err = h.Queries.ExtendLease(ctx, db.ExtendLeaseParams{
+		ExtensionInterval: durationToInterval(time.Duration(extensionSeconds) * time.Second),
+		JobID:             jobUUID,
+		WorkerID:          req.WorkerId,
+	})
+	if err != nil {
+		return &pb.ExtendLeaseResponse{Success: false}, nil
+	}
+
+	return &pb.ExtendLeaseResponse{Success: true}, nil
 }
 
 func (h *GrpcHandler) SubmitJob(ctx context.Context, req *pb.SubmitRequest) (*pb.SubmitResponse, error) {

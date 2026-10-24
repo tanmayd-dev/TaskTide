@@ -10,6 +10,7 @@ service TaskTideService {
     rpc PollJobs(PollRequest) returns (PollResponse);
     rpc CompleteJob(CompleteRequest) returns (CompleteResponse);
     rpc SubmitJob(SubmitRequest) returns (SubmitResponse);
+    rpc ExtendLease(ExtendLeaseRequest) returns (ExtendLeaseResponse);
 }
 
 message RegisterRequest {
@@ -74,4 +75,14 @@ message SubmitRequest {
 message SubmitResponse {
     string job_id = 1;
     string status = 2;
+}
+
+message ExtendLeaseRequest {
+    string job_id = 1;
+    string worker_id = 2;
+    int32 extension_seconds = 3;
+}
+
+message ExtendLeaseResponse {
+    bool success = 1;
 }

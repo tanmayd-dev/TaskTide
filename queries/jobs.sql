@@ -54,6 +54,12 @@ WHERE j.status = 'pending'
   AND q.paused = FALSE
 ORDER BY j.priority DESC, j.scheduled_at ASC;
 
+-- name: ClaimPendingJobs :many
+SELECT j.* FROM jobs j JOIN queues q ON j.queue_name = q.name
+WHERE j.status = 'pending' AND j.scheduled_at <= NOW() AND q.paused = FALSE
+ORDER BY j.priority DESC, j.scheduled_at ASC
+FOR UPDATE OF j SKIP LOCKED LIMIT $1;
+
 -- name: CreateExecution :one
 INSERT INTO executions (
     job_id, worker_id, status

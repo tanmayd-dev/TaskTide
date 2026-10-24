@@ -27,7 +27,7 @@ func StartRecoveryLoop(ctx context.Context, queries *db.Queries) {
 
 func recoverDeadWorkers(ctx context.Context, queries *db.Queries) {
 	threshold := time.Now().Add(-15 * time.Second)
-	thresholdTimestamp := pgtype.Timestamptz{Time: threshold, Valid: true}
+	thresholdTimestamp := pgtype.Timestamp{Time: threshold, Valid: true}
 
 	deadWorkers, err := queries.GetDeadWorkers(ctx, thresholdTimestamp)
 	if err != nil {

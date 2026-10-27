@@ -5,8 +5,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USERNAME}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: TaskTide
-    ports:
-      - "5432:5432"
     volumes:
       - TaskTide:/var/lib/postgresql/data
     healthcheck:
@@ -21,9 +19,6 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
 
   migration:
     build:
@@ -58,8 +53,6 @@ services:
       - MINIO_USER=${MINIO_USER}
       - MINIO_PASSWORD=${MINIO_PASSWORD}
       - FILES_BUCKET_NAME=${FILES_BUCKET_NAME}
-    ports:
-      - "${API_PORT}:${API_PORT}"
     depends_on:
       migration:
         condition: service_completed_successfully
@@ -81,8 +74,6 @@ services:
       - MINIO_USER=${MINIO_USER}
       - MINIO_PASSWORD=${MINIO_PASSWORD}
       - FILES_BUCKET_NAME=${FILES_BUCKET_NAME}
-    ports:
-      - "${QUEUE_PORT}:${QUEUE_PORT}"
     depends_on:
       migration:
         condition: service_completed_successfully
@@ -105,11 +96,14 @@ services:
         condition: service_started
 
   frontend:
-    image: nginx:alpine
+    build:
+      context: ./frontend
+    environment:
+      # Consumed by nginx.conf.template (envsubst) to reach the api service.
+      # Same variable feeds the api service's listen port, so they stay in sync.
+      - API_PORT=${API_PORT}
     ports:
-      - "3001:80"
-    volumes:
-      - ./frontend/dist:/usr/share/nginx/html
+      - "127.0.0.1:3001:80"
     depends_on:
       api:
         condition: service_started

@@ -68,27 +68,26 @@ flowchart TB
 # 1. environment
 cp .env.example .env          # adjust ports/credentials if you need to
 
-# 2. build the frontend first -- nginx serves frontend/dist, so it must exist
-cd frontend && npm install && npm run build && cd ..
-
-# 3. bring the stack up
+# 2. bring the stack up (the frontend image builds the SPA itself)
 docker compose up --build
 ```
 
-- App: `http://localhost:3000`
-- API: `http://localhost:8080`
-- MinIO console: `http://localhost:9001`
+- App: `http://localhost:3001` (the API is proxied same-origin under `/api`)
+- Only the frontend is published; Postgres, MinIO, the API and the queue are
+  reachable inside the Compose network only.
 
 ### Run (local dev)
 
 ```bash
 # Backend (needs Postgres + MinIO running; copy required env vars into .env)
+# The Compose stack no longer publishes Postgres/MinIO, so for local dev run
+# your own instances (or a separate compose override) on localhost.
 go mod download
 go run ./cmd/api     # API service
 go run ./cmd/queue   # scheduler service
 go run ./cmd/worker  # worker (self-registers with the queue)
 
-# Frontend
+# Frontend (vite dev proxies /api -> http://localhost:8080; override with VITE_DEV_API_TARGET)
 cd frontend && npm install && npm run dev
 ```
 
@@ -108,7 +107,7 @@ will run `docker compose up` to evaluate this, but everyone will watch a GIF.
 
 Suggested recording (screen capture with `wf-recorder`, `kooha`, or OBS):
 
-1. Open `http://localhost:3000` with the canvas empty.
+1. Open `http://localhost:3001` with the canvas empty.
 2. Drag three tasks onto the canvas and connect them `A → B → C`.
 3. Upload an input file and hit **Run**.
 4. Let the execution monitor tick each task to green.

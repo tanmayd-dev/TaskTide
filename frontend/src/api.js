@@ -1,6 +1,8 @@
 // api.js - TaskTide Backend API Service Client
 
-const API_BASE = 'http://localhost:8080';
+// Defaults to a same-origin path so the production bundle (nginx) can proxy
+// `/api/` to the `api` service. Override with VITE_API_BASE at build time.
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 export const TaskTideAPI = {
     // List all workflow definitions

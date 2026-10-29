@@ -19,15 +19,28 @@ var sensitiveKeywords = []string{
 
 // sensitiveTermPattern compiles the keyword list into one regexp with
 // case-insensitive matching and word-boundary-ish guarding on [_-] context
-// (so api_key and api-key hit, but "apartment" does not).
+// (so api_key and api-key hit, but "apartment" does not). QuoteMeta runs
+// before the space→[-_ ] substitution so the separator class survives as an
+// actual class (multi-word keywords like "private key" become
+// private[-_ ]key, not an escaped literal).
 var sensitiveTermPattern = func() *regexp.Regexp {
 	escaped := make([]string, 0, len(sensitiveKeywords))
 	for _, kw := range sensitiveKeywords {
-		escaped = append(escaped, regexp.QuoteMeta(strings.ReplaceAll(kw, " ", "[-_ ]")))
+		esc := regexp.QuoteMeta(kw)
+		escaped = append(escaped, strings.ReplaceAll(esc, " ", "[-_ ]"))
 	}
 	pattern := fmt.Sprintf(`(?i)\b(?:%s)\b`, strings.Join(escaped, "|"))
 	return regexp.MustCompile(pattern)
 }()
+
+// normalizeTerm maps a term to its canonical aggregate form so case and
+// separator variants (API_KEY, api-key, api_key) each count under the same
+// keyword entry in the report.
+func normalizeTerm(s string) string {
+	return strings.Join(strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return r == '_' || r == '-' || r == ' '
+	}), " ")
+}
 
 // DocCheckSensitive scans the input document for sensitive-looking terms,
 // annotates every match, and appends a short report with per-keyword counts.
@@ -39,7 +52,7 @@ func DocCheckSensitive(task *models.WorkerTaskExecution) error {
 
 	totals := make(map[string]int, len(sensitiveKeywords))
 	for _, m := range matches {
-		totals[strings.ToLower(m)]++
+		totals[normalizeTerm(m)]++
 	}
 
 	annotated := sensitiveTermPattern.ReplaceAllString(content, "[!! $0 !!]")
@@ -53,9 +66,9 @@ func DocCheckSensitive(task *models.WorkerTaskExecution) error {
 	}
 	// Report in the keyword list's order for deterministic output.
 	for _, kw := range sensitiveKeywords {
-		// Accumulate counts for variants that normalize to the same keyword
-		// (e.g. "API_KEY" lowercases to "api_key").
-		if n, ok := totals[strings.ToLower(kw)]; ok && n > 0 {
+		// Variants that normalize to the same keyword (e.g. "API_KEY" or
+		// "api-key" against "api_key") aggregate into one count.
+		if n, ok := totals[normalizeTerm(kw)]; ok && n > 0 {
 			report.WriteString(fmt.Sprintf("  %-14s : %d\n", kw, n))
 		}
 	}

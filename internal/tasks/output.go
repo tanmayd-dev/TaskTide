@@ -10,9 +10,15 @@ import (
 
 func Output(task *models.WorkerTaskExecution) error {
 	output := task.TaskInput + "\nNOOP appended text from output"
-	seconds, err := strconv.Atoi(os.Getenv("NOOP_TIME"))
-	if err != nil {
-		return err
+	// Default to 0 when NOOP_TIME is unset or empty (mirrors Noop), so the
+	// OUTPUT task does not fail in environments without NOOP_TIME.
+	seconds := 0
+	if value := os.Getenv("NOOP_TIME"); value != "" {
+		var err error
+		seconds, err = strconv.Atoi(value)
+		if err != nil {
+			return err
+		}
 	}
 	time.Sleep(time.Second * time.Duration(seconds))
 	task.TaskOutput = output

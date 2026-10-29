@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -67,8 +68,23 @@ func main() {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
+	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if allowedOrigins == "" {
+		allowedOrigins = "http://localhost:5173,http://localhost:3001,http://localhost:3000"
+	}
+	allowed := make(map[string]bool)
+	for _, origin := range strings.Split(allowedOrigins, ",") {
+		if origin = strings.TrimSpace(origin); origin != "" {
+			allowed[origin] = true
+		}
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Only echo the Origin header when it is explicitly allowed.
+		if origin := r.Header.Get("Origin"); allowed[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == "OPTIONS" {

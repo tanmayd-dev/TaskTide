@@ -473,6 +473,149 @@ func (h *GrpcHandler) SubmitJob(ctx context.Context, req *pb.SubmitRequest) (*pb
 	return &pb.SubmitResponse{JobId: j.ID.String(), Status: j.Status}, nil
 }
 
+func (h *GrpcHandler) InspectQueue(ctx context.Context, req *pb.InspectQueueRequest) (*pb.InspectQueueResponse, error) {
+	ctx, span := observability.Tracer.Start(ctx, "InspectQueue")
+	defer span.End()
+
+	queue, err := h.Queries.GetQueue(ctx, req.QueueName)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Errorf(codes.NotFound, "queue '%s' not found", req.QueueName)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get queue: %v", err)
+	}
+	_ = queue
+
+	counts, err := h.Queries.GetQueueJobCounts(ctx, req.QueueName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get queue job counts: %v", err)
+	}
+
+	return &pb.InspectQueueResponse{
+		QueueName:  req.QueueName,
+		Pending:    counts.PendingCount,
+		Running:    counts.RunningCount,
+		Completed:  counts.CompletedCount,
+		Failed:     counts.FailedCount,
+		DeadLetter: counts.DeadLetterCount,
+	}, nil
+}
+
+func (h *GrpcHandler) RetryJob(ctx context.Context, req *pb.RetryJobRequest) (*pb.RetryJobResponse, error) {
+	ctx, span := observability.Tracer.Start(ctx, "RetryJob")
+	defer span.End()
+
+	jobUUID, err := utils.StringToUUID(req.JobId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid job ID: %v", err)
+	}
+
+	if h.Pool == nil {
+		return nil, status.Errorf(codes.Internal, "database pool is not configured")
+	}
+
+	tx, err := h.Pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	qtx := db.New(tx)
+
+	job, err := qtx.GetJob(ctx, jobUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Errorf(codes.NotFound, "job '%s' not found", req.JobId)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get job: %v", err)
+	}
+
+	// Guard against an active, unexpired lease: a live worker still owns the
+	// job. An expired (or completed) lease is released so the retried job can
+	// be claimed afresh.
+	lease, err := qtx.GetActiveLease(ctx, jobUUID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, status.Errorf(codes.Internal, "failed to get lease for job: %v", err)
+	}
+	if err == nil && lease.ExpiresAt.Time.After(time.Now()) {
+		return nil, status.Errorf(codes.FailedPrecondition, "job '%s' is leased by an active worker", req.JobId)
+	}
+	if err == nil {
+		if err := qtx.ReleaseLease(ctx, jobUUID); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to release expired lease for job: %v", err)
+		}
+	}
+
+	// The status guard lives in the query's WHERE clause: 0 rows means the job
+	// is not in a retryable state ('failed' or 'dead_letter').
+	retried, err := qtx.RetryJob(ctx, jobUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Errorf(codes.InvalidArgument, "job '%s' is in status '%s'; can only retry failed or dead_letter jobs", req.JobId, job.Status)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to retry job: %v", err)
+	}
+
+	// The job was dead-lettered — remove the dead-letter record now that it is
+	// back to 'pending'.
+	if job.Status == "dead_letter" {
+		if err := qtx.DeleteDeadLetterJob(ctx, jobUUID); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to delete dead letter record for job: %v", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
+	}
+
+	log.Printf("RetryJob: Job %s moved from '%s' back to '%s'\n", retried.ID.String(), job.Status, retried.Status)
+	return &pb.RetryJobResponse{JobId: retried.ID.String(), Status: retried.Status}, nil
+}
+
+func (h *GrpcHandler) ListWorkers(ctx context.Context, req *pb.ListWorkersRequest) (*pb.ListWorkersResponse, error) {
+	ctx, span := observability.Tracer.Start(ctx, "ListWorkers")
+	defer span.End()
+
+	workers, err := h.Queries.ListWorkersWithStatus(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list workers: %v", err)
+	}
+
+	result := make([]*pb.WorkerStatus, 0, len(workers))
+	for _, w := range workers {
+		result = append(result, &pb.WorkerStatus{
+			WorkerId:      w.ID.String(),
+			Host:          w.WorkerHost,
+			Active:        w.Active,
+			LastHeartbeat: w.LastHeartbeat.Time.Unix(),
+		})
+	}
+	return &pb.ListWorkersResponse{Workers: result}, nil
+}
+
+func (h *GrpcHandler) PauseQueue(ctx context.Context, req *pb.PauseQueueRequest) (*pb.PauseQueueResponse, error) {
+	ctx, span := observability.Tracer.Start(ctx, "PauseQueue")
+	defer span.End()
+
+	if _, err := h.Queries.GetQueue(ctx, req.QueueName); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Errorf(codes.NotFound, "queue '%s' not found", req.QueueName)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to get queue: %v", err)
+	}
+
+	if err := h.Queries.SetQueuePaused(ctx, db.SetQueuePausedParams{
+		Name:   req.QueueName,
+		Paused: req.Paused,
+	}); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to update queue paused state: %v", err)
+	}
+
+	return &pb.PauseQueueResponse{QueueName: req.QueueName, Paused: req.Paused}, nil
+}
+
 // claimAndSubmitReadyTasks claims ready, unassigned workflow tasks and
 // submits each one as a job. Claiming runs in a per-task transaction that
 // takes GetReadyUnassignedTasks' FOR UPDATE SKIP LOCKED row locks, so a

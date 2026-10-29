@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.36.1
-// source: tasktide.proto
+// source: proto/tasktide.proto
 
 package pb
 
@@ -33,7 +33,7 @@ type RegisterRequest struct {
 
 func (x *RegisterRequest) Reset() {
 	*x = RegisterRequest{}
-	mi := &file_tasktide_proto_msgTypes[0]
+	mi := &file_proto_tasktide_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -45,7 +45,7 @@ func (x *RegisterRequest) String() string {
 func (*RegisterRequest) ProtoMessage() {}
 
 func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[0]
+	mi := &file_proto_tasktide_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58,7 +58,7 @@ func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterRequest.ProtoReflect.Descriptor instead.
 func (*RegisterRequest) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{0}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *RegisterRequest) GetHostname() string {
@@ -98,7 +98,7 @@ type RegisterResponse struct {
 
 func (x *RegisterResponse) Reset() {
 	*x = RegisterResponse{}
-	mi := &file_tasktide_proto_msgTypes[1]
+	mi := &file_proto_tasktide_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -110,7 +110,7 @@ func (x *RegisterResponse) String() string {
 func (*RegisterResponse) ProtoMessage() {}
 
 func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[1]
+	mi := &file_proto_tasktide_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -123,7 +123,7 @@ func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterResponse.ProtoReflect.Descriptor instead.
 func (*RegisterResponse) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{1}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RegisterResponse) GetWorkerId() string {
@@ -142,7 +142,7 @@ type HeartbeatRequest struct {
 
 func (x *HeartbeatRequest) Reset() {
 	*x = HeartbeatRequest{}
-	mi := &file_tasktide_proto_msgTypes[2]
+	mi := &file_proto_tasktide_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -154,7 +154,7 @@ func (x *HeartbeatRequest) String() string {
 func (*HeartbeatRequest) ProtoMessage() {}
 
 func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[2]
+	mi := &file_proto_tasktide_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -167,7 +167,7 @@ func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatRequest.ProtoReflect.Descriptor instead.
 func (*HeartbeatRequest) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{2}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *HeartbeatRequest) GetWorkerId() string {
@@ -186,7 +186,7 @@ type HeartbeatResponse struct {
 
 func (x *HeartbeatResponse) Reset() {
 	*x = HeartbeatResponse{}
-	mi := &file_tasktide_proto_msgTypes[3]
+	mi := &file_proto_tasktide_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -198,7 +198,7 @@ func (x *HeartbeatResponse) String() string {
 func (*HeartbeatResponse) ProtoMessage() {}
 
 func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[3]
+	mi := &file_proto_tasktide_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -211,7 +211,7 @@ func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatResponse.ProtoReflect.Descriptor instead.
 func (*HeartbeatResponse) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{3}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *HeartbeatResponse) GetSuccess() bool {
@@ -232,7 +232,7 @@ type PollRequest struct {
 
 func (x *PollRequest) Reset() {
 	*x = PollRequest{}
-	mi := &file_tasktide_proto_msgTypes[4]
+	mi := &file_proto_tasktide_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -244,7 +244,7 @@ func (x *PollRequest) String() string {
 func (*PollRequest) ProtoMessage() {}
 
 func (x *PollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[4]
+	mi := &file_proto_tasktide_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -257,7 +257,7 @@ func (x *PollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollRequest.ProtoReflect.Descriptor instead.
 func (*PollRequest) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{4}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PollRequest) GetWorkerId() string {
@@ -295,7 +295,7 @@ type Job struct {
 
 func (x *Job) Reset() {
 	*x = Job{}
-	mi := &file_tasktide_proto_msgTypes[5]
+	mi := &file_proto_tasktide_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -307,7 +307,7 @@ func (x *Job) String() string {
 func (*Job) ProtoMessage() {}
 
 func (x *Job) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[5]
+	mi := &file_proto_tasktide_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -320,7 +320,7 @@ func (x *Job) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Job.ProtoReflect.Descriptor instead.
 func (*Job) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{5}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Job) GetId() string {
@@ -374,7 +374,7 @@ type PollResponse struct {
 
 func (x *PollResponse) Reset() {
 	*x = PollResponse{}
-	mi := &file_tasktide_proto_msgTypes[6]
+	mi := &file_proto_tasktide_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -386,7 +386,7 @@ func (x *PollResponse) String() string {
 func (*PollResponse) ProtoMessage() {}
 
 func (x *PollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[6]
+	mi := &file_proto_tasktide_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -399,7 +399,7 @@ func (x *PollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollResponse.ProtoReflect.Descriptor instead.
 func (*PollResponse) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{6}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *PollResponse) GetJobs() []*Job {
@@ -422,7 +422,7 @@ type CompleteRequest struct {
 
 func (x *CompleteRequest) Reset() {
 	*x = CompleteRequest{}
-	mi := &file_tasktide_proto_msgTypes[7]
+	mi := &file_proto_tasktide_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -434,7 +434,7 @@ func (x *CompleteRequest) String() string {
 func (*CompleteRequest) ProtoMessage() {}
 
 func (x *CompleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[7]
+	mi := &file_proto_tasktide_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -447,7 +447,7 @@ func (x *CompleteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteRequest.ProtoReflect.Descriptor instead.
 func (*CompleteRequest) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{7}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CompleteRequest) GetJobId() string {
@@ -494,7 +494,7 @@ type CompleteResponse struct {
 
 func (x *CompleteResponse) Reset() {
 	*x = CompleteResponse{}
-	mi := &file_tasktide_proto_msgTypes[8]
+	mi := &file_proto_tasktide_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -506,7 +506,7 @@ func (x *CompleteResponse) String() string {
 func (*CompleteResponse) ProtoMessage() {}
 
 func (x *CompleteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[8]
+	mi := &file_proto_tasktide_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -519,7 +519,7 @@ func (x *CompleteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteResponse.ProtoReflect.Descriptor instead.
 func (*CompleteResponse) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{8}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CompleteResponse) GetSuccess() bool {
@@ -543,7 +543,7 @@ type SubmitRequest struct {
 
 func (x *SubmitRequest) Reset() {
 	*x = SubmitRequest{}
-	mi := &file_tasktide_proto_msgTypes[9]
+	mi := &file_proto_tasktide_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -555,7 +555,7 @@ func (x *SubmitRequest) String() string {
 func (*SubmitRequest) ProtoMessage() {}
 
 func (x *SubmitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[9]
+	mi := &file_proto_tasktide_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -568,7 +568,7 @@ func (x *SubmitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitRequest.ProtoReflect.Descriptor instead.
 func (*SubmitRequest) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{9}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SubmitRequest) GetQueueName() string {
@@ -623,7 +623,7 @@ type SubmitResponse struct {
 
 func (x *SubmitResponse) Reset() {
 	*x = SubmitResponse{}
-	mi := &file_tasktide_proto_msgTypes[10]
+	mi := &file_proto_tasktide_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -635,7 +635,7 @@ func (x *SubmitResponse) String() string {
 func (*SubmitResponse) ProtoMessage() {}
 
 func (x *SubmitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[10]
+	mi := &file_proto_tasktide_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -648,7 +648,7 @@ func (x *SubmitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitResponse.ProtoReflect.Descriptor instead.
 func (*SubmitResponse) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{10}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SubmitResponse) GetJobId() string {
@@ -676,7 +676,7 @@ type ExtendLeaseRequest struct {
 
 func (x *ExtendLeaseRequest) Reset() {
 	*x = ExtendLeaseRequest{}
-	mi := &file_tasktide_proto_msgTypes[11]
+	mi := &file_proto_tasktide_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -688,7 +688,7 @@ func (x *ExtendLeaseRequest) String() string {
 func (*ExtendLeaseRequest) ProtoMessage() {}
 
 func (x *ExtendLeaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[11]
+	mi := &file_proto_tasktide_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -701,7 +701,7 @@ func (x *ExtendLeaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtendLeaseRequest.ProtoReflect.Descriptor instead.
 func (*ExtendLeaseRequest) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{11}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ExtendLeaseRequest) GetJobId() string {
@@ -734,7 +734,7 @@ type ExtendLeaseResponse struct {
 
 func (x *ExtendLeaseResponse) Reset() {
 	*x = ExtendLeaseResponse{}
-	mi := &file_tasktide_proto_msgTypes[12]
+	mi := &file_proto_tasktide_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -746,7 +746,7 @@ func (x *ExtendLeaseResponse) String() string {
 func (*ExtendLeaseResponse) ProtoMessage() {}
 
 func (x *ExtendLeaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tasktide_proto_msgTypes[12]
+	mi := &file_proto_tasktide_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,7 +759,7 @@ func (x *ExtendLeaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtendLeaseResponse.ProtoReflect.Descriptor instead.
 func (*ExtendLeaseResponse) Descriptor() ([]byte, []int) {
-	return file_tasktide_proto_rawDescGZIP(), []int{12}
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ExtendLeaseResponse) GetSuccess() bool {
@@ -769,11 +769,487 @@ func (x *ExtendLeaseResponse) GetSuccess() bool {
 	return false
 }
 
-var File_tasktide_proto protoreflect.FileDescriptor
+type InspectQueueRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QueueName     string                 `protobuf:"bytes,1,opt,name=queue_name,json=queueName,proto3" json:"queue_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_tasktide_proto_rawDesc = "" +
+func (x *InspectQueueRequest) Reset() {
+	*x = InspectQueueRequest{}
+	mi := &file_proto_tasktide_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectQueueRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectQueueRequest) ProtoMessage() {}
+
+func (x *InspectQueueRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tasktide_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectQueueRequest.ProtoReflect.Descriptor instead.
+func (*InspectQueueRequest) Descriptor() ([]byte, []int) {
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *InspectQueueRequest) GetQueueName() string {
+	if x != nil {
+		return x.QueueName
+	}
+	return ""
+}
+
+type InspectQueueResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QueueName     string                 `protobuf:"bytes,1,opt,name=queue_name,json=queueName,proto3" json:"queue_name,omitempty"`
+	Pending       int64                  `protobuf:"varint,2,opt,name=pending,proto3" json:"pending,omitempty"`
+	Running       int64                  `protobuf:"varint,3,opt,name=running,proto3" json:"running,omitempty"`
+	Completed     int64                  `protobuf:"varint,4,opt,name=completed,proto3" json:"completed,omitempty"`
+	Failed        int64                  `protobuf:"varint,5,opt,name=failed,proto3" json:"failed,omitempty"`
+	DeadLetter    int64                  `protobuf:"varint,6,opt,name=dead_letter,json=deadLetter,proto3" json:"dead_letter,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InspectQueueResponse) Reset() {
+	*x = InspectQueueResponse{}
+	mi := &file_proto_tasktide_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectQueueResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectQueueResponse) ProtoMessage() {}
+
+func (x *InspectQueueResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tasktide_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectQueueResponse.ProtoReflect.Descriptor instead.
+func (*InspectQueueResponse) Descriptor() ([]byte, []int) {
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *InspectQueueResponse) GetQueueName() string {
+	if x != nil {
+		return x.QueueName
+	}
+	return ""
+}
+
+func (x *InspectQueueResponse) GetPending() int64 {
+	if x != nil {
+		return x.Pending
+	}
+	return 0
+}
+
+func (x *InspectQueueResponse) GetRunning() int64 {
+	if x != nil {
+		return x.Running
+	}
+	return 0
+}
+
+func (x *InspectQueueResponse) GetCompleted() int64 {
+	if x != nil {
+		return x.Completed
+	}
+	return 0
+}
+
+func (x *InspectQueueResponse) GetFailed() int64 {
+	if x != nil {
+		return x.Failed
+	}
+	return 0
+}
+
+func (x *InspectQueueResponse) GetDeadLetter() int64 {
+	if x != nil {
+		return x.DeadLetter
+	}
+	return 0
+}
+
+type RetryJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetryJobRequest) Reset() {
+	*x = RetryJobRequest{}
+	mi := &file_proto_tasktide_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetryJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetryJobRequest) ProtoMessage() {}
+
+func (x *RetryJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tasktide_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetryJobRequest.ProtoReflect.Descriptor instead.
+func (*RetryJobRequest) Descriptor() ([]byte, []int) {
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RetryJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+type RetryJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetryJobResponse) Reset() {
+	*x = RetryJobResponse{}
+	mi := &file_proto_tasktide_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetryJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetryJobResponse) ProtoMessage() {}
+
+func (x *RetryJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tasktide_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetryJobResponse.ProtoReflect.Descriptor instead.
+func (*RetryJobResponse) Descriptor() ([]byte, []int) {
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RetryJobResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *RetryJobResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+type ListWorkersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWorkersRequest) Reset() {
+	*x = ListWorkersRequest{}
+	mi := &file_proto_tasktide_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWorkersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWorkersRequest) ProtoMessage() {}
+
+func (x *ListWorkersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tasktide_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWorkersRequest.ProtoReflect.Descriptor instead.
+func (*ListWorkersRequest) Descriptor() ([]byte, []int) {
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{17}
+}
+
+type WorkerStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	Host          string                 `protobuf:"bytes,2,opt,name=host,proto3" json:"host,omitempty"`
+	Active        bool                   `protobuf:"varint,3,opt,name=active,proto3" json:"active,omitempty"`
+	LastHeartbeat int64                  `protobuf:"varint,4,opt,name=last_heartbeat,json=lastHeartbeat,proto3" json:"last_heartbeat,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WorkerStatus) Reset() {
+	*x = WorkerStatus{}
+	mi := &file_proto_tasktide_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkerStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkerStatus) ProtoMessage() {}
+
+func (x *WorkerStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tasktide_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkerStatus.ProtoReflect.Descriptor instead.
+func (*WorkerStatus) Descriptor() ([]byte, []int) {
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *WorkerStatus) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+func (x *WorkerStatus) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *WorkerStatus) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *WorkerStatus) GetLastHeartbeat() int64 {
+	if x != nil {
+		return x.LastHeartbeat
+	}
+	return 0
+}
+
+type ListWorkersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workers       []*WorkerStatus        `protobuf:"bytes,1,rep,name=workers,proto3" json:"workers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWorkersResponse) Reset() {
+	*x = ListWorkersResponse{}
+	mi := &file_proto_tasktide_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWorkersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWorkersResponse) ProtoMessage() {}
+
+func (x *ListWorkersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tasktide_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWorkersResponse.ProtoReflect.Descriptor instead.
+func (*ListWorkersResponse) Descriptor() ([]byte, []int) {
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ListWorkersResponse) GetWorkers() []*WorkerStatus {
+	if x != nil {
+		return x.Workers
+	}
+	return nil
+}
+
+type PauseQueueRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QueueName     string                 `protobuf:"bytes,1,opt,name=queue_name,json=queueName,proto3" json:"queue_name,omitempty"`
+	Paused        bool                   `protobuf:"varint,2,opt,name=paused,proto3" json:"paused,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PauseQueueRequest) Reset() {
+	*x = PauseQueueRequest{}
+	mi := &file_proto_tasktide_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PauseQueueRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PauseQueueRequest) ProtoMessage() {}
+
+func (x *PauseQueueRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tasktide_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PauseQueueRequest.ProtoReflect.Descriptor instead.
+func (*PauseQueueRequest) Descriptor() ([]byte, []int) {
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *PauseQueueRequest) GetQueueName() string {
+	if x != nil {
+		return x.QueueName
+	}
+	return ""
+}
+
+func (x *PauseQueueRequest) GetPaused() bool {
+	if x != nil {
+		return x.Paused
+	}
+	return false
+}
+
+type PauseQueueResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QueueName     string                 `protobuf:"bytes,1,opt,name=queue_name,json=queueName,proto3" json:"queue_name,omitempty"`
+	Paused        bool                   `protobuf:"varint,2,opt,name=paused,proto3" json:"paused,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PauseQueueResponse) Reset() {
+	*x = PauseQueueResponse{}
+	mi := &file_proto_tasktide_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PauseQueueResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PauseQueueResponse) ProtoMessage() {}
+
+func (x *PauseQueueResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_tasktide_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PauseQueueResponse.ProtoReflect.Descriptor instead.
+func (*PauseQueueResponse) Descriptor() ([]byte, []int) {
+	return file_proto_tasktide_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *PauseQueueResponse) GetQueueName() string {
+	if x != nil {
+		return x.QueueName
+	}
+	return ""
+}
+
+func (x *PauseQueueResponse) GetPaused() bool {
+	if x != nil {
+		return x.Paused
+	}
+	return false
+}
+
+var File_proto_tasktide_proto protoreflect.FileDescriptor
+
+const file_proto_tasktide_proto_rawDesc = "" +
 	"\n" +
-	"\x0etasktide.proto\x12\btasktide\"\x87\x01\n" +
+	"\x14proto/tasktide.proto\x12\btasktide\"\x87\x01\n" +
 	"\x0fRegisterRequest\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\tR\x04port\x12 \n" +
@@ -827,84 +1303,140 @@ const file_tasktide_proto_rawDesc = "" +
 	"\tworker_id\x18\x02 \x01(\tR\bworkerId\x12+\n" +
 	"\x11extension_seconds\x18\x03 \x01(\x05R\x10extensionSeconds\"/\n" +
 	"\x13ExtendLeaseResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\xad\x03\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"4\n" +
+	"\x13InspectQueueRequest\x12\x1d\n" +
+	"\n" +
+	"queue_name\x18\x01 \x01(\tR\tqueueName\"\xc0\x01\n" +
+	"\x14InspectQueueResponse\x12\x1d\n" +
+	"\n" +
+	"queue_name\x18\x01 \x01(\tR\tqueueName\x12\x18\n" +
+	"\apending\x18\x02 \x01(\x03R\apending\x12\x18\n" +
+	"\arunning\x18\x03 \x01(\x03R\arunning\x12\x1c\n" +
+	"\tcompleted\x18\x04 \x01(\x03R\tcompleted\x12\x16\n" +
+	"\x06failed\x18\x05 \x01(\x03R\x06failed\x12\x1f\n" +
+	"\vdead_letter\x18\x06 \x01(\x03R\n" +
+	"deadLetter\"(\n" +
+	"\x0fRetryJobRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"A\n" +
+	"\x10RetryJobResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\"\x14\n" +
+	"\x12ListWorkersRequest\"~\n" +
+	"\fWorkerStatus\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12\x12\n" +
+	"\x04host\x18\x02 \x01(\tR\x04host\x12\x16\n" +
+	"\x06active\x18\x03 \x01(\bR\x06active\x12%\n" +
+	"\x0elast_heartbeat\x18\x04 \x01(\x03R\rlastHeartbeat\"G\n" +
+	"\x13ListWorkersResponse\x120\n" +
+	"\aworkers\x18\x01 \x03(\v2\x16.tasktide.WorkerStatusR\aworkers\"J\n" +
+	"\x11PauseQueueRequest\x12\x1d\n" +
+	"\n" +
+	"queue_name\x18\x01 \x01(\tR\tqueueName\x12\x16\n" +
+	"\x06paused\x18\x02 \x01(\bR\x06paused\"K\n" +
+	"\x12PauseQueueResponse\x12\x1d\n" +
+	"\n" +
+	"queue_name\x18\x01 \x01(\tR\tqueueName\x12\x16\n" +
+	"\x06paused\x18\x02 \x01(\bR\x06paused2\xd4\x05\n" +
 	"\x0fTaskTideService\x12G\n" +
 	"\x0eRegisterWorker\x12\x19.tasktide.RegisterRequest\x1a\x1a.tasktide.RegisterResponse\x12D\n" +
 	"\tHeartbeat\x12\x1a.tasktide.HeartbeatRequest\x1a\x1b.tasktide.HeartbeatResponse\x129\n" +
 	"\bPollJobs\x12\x15.tasktide.PollRequest\x1a\x16.tasktide.PollResponse\x12D\n" +
 	"\vCompleteJob\x12\x19.tasktide.CompleteRequest\x1a\x1a.tasktide.CompleteResponse\x12>\n" +
 	"\tSubmitJob\x12\x17.tasktide.SubmitRequest\x1a\x18.tasktide.SubmitResponse\x12J\n" +
-	"\vExtendLease\x12\x1c.tasktide.ExtendLeaseRequest\x1a\x1d.tasktide.ExtendLeaseResponseB-Z+github.com/tanmayd-dev/TaskTide/internal/pbb\x06proto3"
+	"\vExtendLease\x12\x1c.tasktide.ExtendLeaseRequest\x1a\x1d.tasktide.ExtendLeaseResponse\x12M\n" +
+	"\fInspectQueue\x12\x1d.tasktide.InspectQueueRequest\x1a\x1e.tasktide.InspectQueueResponse\x12A\n" +
+	"\bRetryJob\x12\x19.tasktide.RetryJobRequest\x1a\x1a.tasktide.RetryJobResponse\x12J\n" +
+	"\vListWorkers\x12\x1c.tasktide.ListWorkersRequest\x1a\x1d.tasktide.ListWorkersResponse\x12G\n" +
+	"\n" +
+	"PauseQueue\x12\x1b.tasktide.PauseQueueRequest\x1a\x1c.tasktide.PauseQueueResponseB-Z+github.com/tanmayd-dev/TaskTide/internal/pbb\x06proto3"
 
 var (
-	file_tasktide_proto_rawDescOnce sync.Once
-	file_tasktide_proto_rawDescData []byte
+	file_proto_tasktide_proto_rawDescOnce sync.Once
+	file_proto_tasktide_proto_rawDescData []byte
 )
 
-func file_tasktide_proto_rawDescGZIP() []byte {
-	file_tasktide_proto_rawDescOnce.Do(func() {
-		file_tasktide_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_tasktide_proto_rawDesc), len(file_tasktide_proto_rawDesc)))
+func file_proto_tasktide_proto_rawDescGZIP() []byte {
+	file_proto_tasktide_proto_rawDescOnce.Do(func() {
+		file_proto_tasktide_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_tasktide_proto_rawDesc), len(file_proto_tasktide_proto_rawDesc)))
 	})
-	return file_tasktide_proto_rawDescData
+	return file_proto_tasktide_proto_rawDescData
 }
 
-var file_tasktide_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
-var file_tasktide_proto_goTypes = []any{
-	(*RegisterRequest)(nil),     // 0: tasktide.RegisterRequest
-	(*RegisterResponse)(nil),    // 1: tasktide.RegisterResponse
-	(*HeartbeatRequest)(nil),    // 2: tasktide.HeartbeatRequest
-	(*HeartbeatResponse)(nil),   // 3: tasktide.HeartbeatResponse
-	(*PollRequest)(nil),         // 4: tasktide.PollRequest
-	(*Job)(nil),                 // 5: tasktide.Job
-	(*PollResponse)(nil),        // 6: tasktide.PollResponse
-	(*CompleteRequest)(nil),     // 7: tasktide.CompleteRequest
-	(*CompleteResponse)(nil),    // 8: tasktide.CompleteResponse
-	(*SubmitRequest)(nil),       // 9: tasktide.SubmitRequest
-	(*SubmitResponse)(nil),      // 10: tasktide.SubmitResponse
-	(*ExtendLeaseRequest)(nil),  // 11: tasktide.ExtendLeaseRequest
-	(*ExtendLeaseResponse)(nil), // 12: tasktide.ExtendLeaseResponse
+var file_proto_tasktide_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_proto_tasktide_proto_goTypes = []any{
+	(*RegisterRequest)(nil),      // 0: tasktide.RegisterRequest
+	(*RegisterResponse)(nil),     // 1: tasktide.RegisterResponse
+	(*HeartbeatRequest)(nil),     // 2: tasktide.HeartbeatRequest
+	(*HeartbeatResponse)(nil),    // 3: tasktide.HeartbeatResponse
+	(*PollRequest)(nil),          // 4: tasktide.PollRequest
+	(*Job)(nil),                  // 5: tasktide.Job
+	(*PollResponse)(nil),         // 6: tasktide.PollResponse
+	(*CompleteRequest)(nil),      // 7: tasktide.CompleteRequest
+	(*CompleteResponse)(nil),     // 8: tasktide.CompleteResponse
+	(*SubmitRequest)(nil),        // 9: tasktide.SubmitRequest
+	(*SubmitResponse)(nil),       // 10: tasktide.SubmitResponse
+	(*ExtendLeaseRequest)(nil),   // 11: tasktide.ExtendLeaseRequest
+	(*ExtendLeaseResponse)(nil),  // 12: tasktide.ExtendLeaseResponse
+	(*InspectQueueRequest)(nil),  // 13: tasktide.InspectQueueRequest
+	(*InspectQueueResponse)(nil), // 14: tasktide.InspectQueueResponse
+	(*RetryJobRequest)(nil),      // 15: tasktide.RetryJobRequest
+	(*RetryJobResponse)(nil),     // 16: tasktide.RetryJobResponse
+	(*ListWorkersRequest)(nil),   // 17: tasktide.ListWorkersRequest
+	(*WorkerStatus)(nil),         // 18: tasktide.WorkerStatus
+	(*ListWorkersResponse)(nil),  // 19: tasktide.ListWorkersResponse
+	(*PauseQueueRequest)(nil),    // 20: tasktide.PauseQueueRequest
+	(*PauseQueueResponse)(nil),   // 21: tasktide.PauseQueueResponse
 }
-var file_tasktide_proto_depIdxs = []int32{
+var file_proto_tasktide_proto_depIdxs = []int32{
 	5,  // 0: tasktide.PollResponse.jobs:type_name -> tasktide.Job
-	0,  // 1: tasktide.TaskTideService.RegisterWorker:input_type -> tasktide.RegisterRequest
-	2,  // 2: tasktide.TaskTideService.Heartbeat:input_type -> tasktide.HeartbeatRequest
-	4,  // 3: tasktide.TaskTideService.PollJobs:input_type -> tasktide.PollRequest
-	7,  // 4: tasktide.TaskTideService.CompleteJob:input_type -> tasktide.CompleteRequest
-	9,  // 5: tasktide.TaskTideService.SubmitJob:input_type -> tasktide.SubmitRequest
-	11, // 6: tasktide.TaskTideService.ExtendLease:input_type -> tasktide.ExtendLeaseRequest
-	1,  // 7: tasktide.TaskTideService.RegisterWorker:output_type -> tasktide.RegisterResponse
-	3,  // 8: tasktide.TaskTideService.Heartbeat:output_type -> tasktide.HeartbeatResponse
-	6,  // 9: tasktide.TaskTideService.PollJobs:output_type -> tasktide.PollResponse
-	8,  // 10: tasktide.TaskTideService.CompleteJob:output_type -> tasktide.CompleteResponse
-	10, // 11: tasktide.TaskTideService.SubmitJob:output_type -> tasktide.SubmitResponse
-	12, // 12: tasktide.TaskTideService.ExtendLease:output_type -> tasktide.ExtendLeaseResponse
-	7,  // [7:13] is the sub-list for method output_type
-	1,  // [1:7] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	18, // 1: tasktide.ListWorkersResponse.workers:type_name -> tasktide.WorkerStatus
+	0,  // 2: tasktide.TaskTideService.RegisterWorker:input_type -> tasktide.RegisterRequest
+	2,  // 3: tasktide.TaskTideService.Heartbeat:input_type -> tasktide.HeartbeatRequest
+	4,  // 4: tasktide.TaskTideService.PollJobs:input_type -> tasktide.PollRequest
+	7,  // 5: tasktide.TaskTideService.CompleteJob:input_type -> tasktide.CompleteRequest
+	9,  // 6: tasktide.TaskTideService.SubmitJob:input_type -> tasktide.SubmitRequest
+	11, // 7: tasktide.TaskTideService.ExtendLease:input_type -> tasktide.ExtendLeaseRequest
+	13, // 8: tasktide.TaskTideService.InspectQueue:input_type -> tasktide.InspectQueueRequest
+	15, // 9: tasktide.TaskTideService.RetryJob:input_type -> tasktide.RetryJobRequest
+	17, // 10: tasktide.TaskTideService.ListWorkers:input_type -> tasktide.ListWorkersRequest
+	20, // 11: tasktide.TaskTideService.PauseQueue:input_type -> tasktide.PauseQueueRequest
+	1,  // 12: tasktide.TaskTideService.RegisterWorker:output_type -> tasktide.RegisterResponse
+	3,  // 13: tasktide.TaskTideService.Heartbeat:output_type -> tasktide.HeartbeatResponse
+	6,  // 14: tasktide.TaskTideService.PollJobs:output_type -> tasktide.PollResponse
+	8,  // 15: tasktide.TaskTideService.CompleteJob:output_type -> tasktide.CompleteResponse
+	10, // 16: tasktide.TaskTideService.SubmitJob:output_type -> tasktide.SubmitResponse
+	12, // 17: tasktide.TaskTideService.ExtendLease:output_type -> tasktide.ExtendLeaseResponse
+	14, // 18: tasktide.TaskTideService.InspectQueue:output_type -> tasktide.InspectQueueResponse
+	16, // 19: tasktide.TaskTideService.RetryJob:output_type -> tasktide.RetryJobResponse
+	19, // 20: tasktide.TaskTideService.ListWorkers:output_type -> tasktide.ListWorkersResponse
+	21, // 21: tasktide.TaskTideService.PauseQueue:output_type -> tasktide.PauseQueueResponse
+	12, // [12:22] is the sub-list for method output_type
+	2,  // [2:12] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_tasktide_proto_init() }
-func file_tasktide_proto_init() {
-	if File_tasktide_proto != nil {
+func init() { file_proto_tasktide_proto_init() }
+func file_proto_tasktide_proto_init() {
+	if File_proto_tasktide_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tasktide_proto_rawDesc), len(file_tasktide_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_tasktide_proto_rawDesc), len(file_proto_tasktide_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_tasktide_proto_goTypes,
-		DependencyIndexes: file_tasktide_proto_depIdxs,
-		MessageInfos:      file_tasktide_proto_msgTypes,
+		GoTypes:           file_proto_tasktide_proto_goTypes,
+		DependencyIndexes: file_proto_tasktide_proto_depIdxs,
+		MessageInfos:      file_proto_tasktide_proto_msgTypes,
 	}.Build()
-	File_tasktide_proto = out.File
-	file_tasktide_proto_goTypes = nil
-	file_tasktide_proto_depIdxs = nil
+	File_proto_tasktide_proto = out.File
+	file_proto_tasktide_proto_goTypes = nil
+	file_proto_tasktide_proto_depIdxs = nil
 }

@@ -9,8 +9,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/joho/godotenv"
 	"github.com/tanmayd-dev/TaskTide/internal/pb"
 	"google.golang.org/grpc"
@@ -51,10 +49,30 @@ func printUsageAndExit() {
 	fmt.Println("  submit-job       Submit a new job to a queue")
 	fmt.Println("  inspect-queue    Show metrics for a queue")
 	fmt.Println("  retry-failed-job Retry a failed or dead-letter job")
-	fmt.Println("  list-workers     List active and dead workers")
+	fmt.Println("  list-workers     List registered workers")
 	fmt.Println("  pause-queue      Pause a queue")
 	fmt.Println("  resume-queue     Resume a queue")
 	os.Exit(1)
+}
+
+// dialCoordinator connects to the TaskTide gRPC coordinator using the same
+// connection env knobs as the worker (QUEUE_HOST, GRPC_PORT).
+func dialCoordinator() *grpc.ClientConn {
+	queueHost := os.Getenv("QUEUE_HOST")
+	if queueHost == "" {
+		queueHost = "localhost"
+	}
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50051"
+	}
+
+	addr := fmt.Sprintf("%s:%s", queueHost, grpcPort)
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to connect to coordinator at %s: %v", addr, err)
+	}
+	return conn
 }
 
 func submitJobCmd() {
@@ -65,7 +83,6 @@ func submitJobCmd() {
 	delay := cmd.Int("delay", 0, "Delay in seconds")
 	priority := cmd.Int("priority", 0, "Job priority")
 	idempotencyKey := cmd.String("idempotency-key", "", "Idempotency key")
-	addr := cmd.String("addr", "localhost:50051", "gRPC address of the coordinator")
 
 	_ = cmd.Parse(os.Args[2:])
 
@@ -75,10 +92,7 @@ func submitJobCmd() {
 		log.Fatalf("Error: payload is not valid JSON")
 	}
 
-	conn, err := grpc.NewClient(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("Failed to connect to coordinator: %v", err)
-	}
+	conn := dialCoordinator()
 	defer conn.Close()
 
 	client := pb.NewTaskTideServiceClient(conn)
@@ -100,51 +114,29 @@ func submitJobCmd() {
 	fmt.Printf("Job submitted successfully!\nID: %s\nStatus: %s\n", resp.JobId, resp.Status)
 }
 
-func getDBConn(ctx context.Context) *pgx.Conn {
-	dbString := os.Getenv("POSTGRES_DBSTRING")
-	if dbString == "" {
-		dbString = "postgres://postgres:postgres@localhost:5432/TaskTide?sslmode=disable"
-	}
-	conn, err := pgx.Connect(ctx, dbString)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	return conn
-}
-
 func inspectQueueCmd() {
 	cmd := flag.NewFlagSet("inspect-queue", flag.ExitOnError)
 	queueName := cmd.String("queue", "default", "Queue name")
 	_ = cmd.Parse(os.Args[2:])
 
-	ctx := context.Background()
-	conn := getDBConn(ctx)
-	defer conn.Close(ctx)
+	conn := dialCoordinator()
+	defer conn.Close()
 
-	// Ensure queue exists in database first
-	var qExists bool
-	_ = conn.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM queues WHERE name=$1)", *queueName).Scan(&qExists)
-	if !qExists {
-		fmt.Printf("Queue '%s' does not exist.\n", *queueName)
-		return
+	client := pb.NewTaskTideServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.InspectQueue(ctx, &pb.InspectQueueRequest{QueueName: *queueName})
+	if err != nil {
+		log.Fatalf("Failed to inspect queue '%s': %v", *queueName, err)
 	}
 
-	var paused bool
-	_ = conn.QueryRow(ctx, "SELECT paused FROM queues WHERE name=$1", *queueName).Scan(&paused)
-
-	var pending, running, completed, failed, deadLetter int
-	_ = conn.QueryRow(ctx, "SELECT count(*) FROM jobs WHERE queue_name=$1 AND status='pending'", *queueName).Scan(&pending)
-	_ = conn.QueryRow(ctx, "SELECT count(*) FROM jobs WHERE queue_name=$1 AND status='running'", *queueName).Scan(&running)
-	_ = conn.QueryRow(ctx, "SELECT count(*) FROM jobs WHERE queue_name=$1 AND status='completed'", *queueName).Scan(&completed)
-	_ = conn.QueryRow(ctx, "SELECT count(*) FROM jobs WHERE queue_name=$1 AND status='failed'", *queueName).Scan(&failed)
-	_ = conn.QueryRow(ctx, "SELECT count(*) FROM jobs WHERE queue_name=$1 AND status='dead_letter'", *queueName).Scan(&deadLetter)
-
-	fmt.Printf("Queue: %s (Paused: %v)\n", *queueName, paused)
-	fmt.Printf("  Pending:     %d\n", pending)
-	fmt.Printf("  Running:     %d\n", running)
-	fmt.Printf("  Completed:   %d\n", completed)
-	fmt.Printf("  Failed:      %d\n", failed)
-	fmt.Printf("  Dead-Letter: %d\n", deadLetter)
+	fmt.Printf("Queue: %s\n", resp.QueueName)
+	fmt.Printf("  Pending:     %d\n", resp.Pending)
+	fmt.Printf("  Running:     %d\n", resp.Running)
+	fmt.Printf("  Completed:   %d\n", resp.Completed)
+	fmt.Printf("  Failed:      %d\n", resp.Failed)
+	fmt.Printf("  Dead-Letter: %d\n", resp.DeadLetter)
 }
 
 func retryJobCmd() {
@@ -156,72 +148,47 @@ func retryJobCmd() {
 		log.Fatalf("Error: --job argument is required")
 	}
 
-	ctx := context.Background()
-	conn := getDBConn(ctx)
-	defer conn.Close(ctx)
+	conn := dialCoordinator()
+	defer conn.Close()
 
-	var status string
-	err := conn.QueryRow(ctx, "SELECT status FROM jobs WHERE id=$1", *jobId).Scan(&status)
+	client := pb.NewTaskTideServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.RetryJob(ctx, &pb.RetryJobRequest{JobId: *jobId})
 	if err != nil {
-		log.Fatalf("Job '%s' not found: %v", *jobId, err)
+		log.Fatalf("Failed to retry job '%s': %v", *jobId, err)
 	}
 
-	if status != "failed" && status != "dead_letter" {
-		log.Fatalf("Job '%s' is in status '%s'. Can only retry failed or dead_letter jobs.", *jobId, status)
-	}
-
-	// Move job back to pending
-	_, err = conn.Exec(ctx, "UPDATE jobs SET status='pending', retry_count=0, scheduled_at=NOW(), updated_at=NOW() WHERE id=$1", *jobId)
-	if err != nil {
-		log.Fatalf("Failed to retry job: %v", err)
-	}
-
-	// Delete from worker leases and dead letter list if exists
-	_, _ = conn.Exec(ctx, "DELETE FROM worker_leases WHERE job_id=$1", *jobId)
-	_, _ = conn.Exec(ctx, "DELETE FROM dead_letter_jobs WHERE job_id=$1", *jobId)
-
-	fmt.Printf("Job %s successfully rescheduled to pending status.\n", *jobId)
+	fmt.Printf("Job %s successfully rescheduled to status '%s'.\n", resp.JobId, resp.Status)
 }
 
 func listWorkersCmd() {
-	ctx := context.Background()
-	conn := getDBConn(ctx)
-	defer conn.Close(ctx)
+	conn := dialCoordinator()
+	defer conn.Close()
 
-	rows, err := conn.Query(ctx, "SELECT id, worker_host, worker_port, concurrency, capabilities, last_heartbeat FROM worker ORDER BY last_heartbeat DESC")
+	client := pb.NewTaskTideServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.ListWorkers(ctx, &pb.ListWorkersRequest{})
 	if err != nil {
-		log.Fatalf("Failed to query workers: %v", err)
+		log.Fatalf("Failed to list workers: %v", err)
 	}
-	defer rows.Close()
 
-	fmt.Printf("%-38s %-20s %-12s %-50s %-20s\n", "WORKER ID", "HOST:PORT", "CONCURRENCY", "CAPABILITIES", "LAST SEEN")
+	fmt.Printf("%-38s %-25s %-10s %-20s\n", "WORKER ID", "HOST", "STATUS", "LAST SEEN")
 	fmt.Println(fmt.Sprintf("%s", time.Now().Format("2006-01-02 15:04:05")))
 
-	for rows.Next() {
-		var id pgtype.UUID
-		var host, port string
-		var concurrency int32
-		var capabilities []string
-		var lastHeartbeat pgtype.Timestamp
-
-		err = rows.Scan(&id, &host, &port, &concurrency, &capabilities, &lastHeartbeat)
-		if err != nil {
-			log.Fatalf("Failed to scan worker: %v", err)
-		}
-
-		addr := fmt.Sprintf("%s:%s", host, port)
+	for _, w := range resp.Workers {
 		statusStr := "ACTIVE"
-		if time.Since(lastHeartbeat.Time) > 15*time.Second {
+		if !w.Active {
 			statusStr = "DEAD"
 		}
-
-		fmt.Printf("%-38s %-20s %-12d %-50v %-20s (%s)\n",
-			id.String(),
-			addr,
-			concurrency,
-			capabilities,
-			lastHeartbeat.Time.Format("15:04:05"),
+		fmt.Printf("%-38s %-25s %-10s %-20s\n",
+			w.WorkerId,
+			w.Host,
 			statusStr,
+			time.Unix(w.LastHeartbeat, 0).Format("15:04:05"),
 		)
 	}
 }
@@ -235,29 +202,21 @@ func pauseQueueCmd(paused bool) {
 	queueName := cmd.String("queue", "default", "Queue name")
 	_ = cmd.Parse(os.Args[2:])
 
-	ctx := context.Background()
-	conn := getDBConn(ctx)
-	defer conn.Close(ctx)
+	conn := dialCoordinator()
+	defer conn.Close()
 
-	// Ensure queue exists
-	var qExists bool
-	_ = conn.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM queues WHERE name=$1)", *queueName).Scan(&qExists)
-	if !qExists {
-		// Create queue if it doesn't exist
-		_, err := conn.Exec(ctx, "INSERT INTO queues (name, paused) VALUES ($1, $2)", *queueName, paused)
-		if err != nil {
-			log.Fatalf("Failed to create queue: %v", err)
-		}
-	} else {
-		_, err := conn.Exec(ctx, "UPDATE queues SET paused=$1 WHERE name=$2", paused, *queueName)
-		if err != nil {
-			log.Fatalf("Failed to update queue: %v", err)
-		}
+	client := pb.NewTaskTideServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.PauseQueue(ctx, &pb.PauseQueueRequest{QueueName: *queueName, Paused: paused})
+	if err != nil {
+		log.Fatalf("Failed to set paused=%t on queue '%s': %v", paused, *queueName, err)
 	}
 
 	action := "paused"
 	if !paused {
 		action = "resumed"
 	}
-	fmt.Printf("Queue '%s' successfully %s.\n", *queueName, action)
+	fmt.Printf("Queue '%s' successfully %s (paused: %t).\n", resp.QueueName, action, resp.Paused)
 }

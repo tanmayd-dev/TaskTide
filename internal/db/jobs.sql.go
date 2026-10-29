@@ -262,6 +262,15 @@ func (q *Queries) CreateRetry(ctx context.Context, arg CreateRetryParams) (Retry
 	return i, err
 }
 
+const deleteDeadLetterJob = `-- name: DeleteDeadLetterJob :exec
+DELETE FROM dead_letter_jobs WHERE job_id = $1
+`
+
+func (q *Queries) DeleteDeadLetterJob(ctx context.Context, jobID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteDeadLetterJob, jobID)
+	return err
+}
+
 const ensureQueueExists = `-- name: EnsureQueueExists :exec
 INSERT INTO queues (
     name, paused
@@ -503,6 +512,38 @@ func (q *Queries) GetQueueDepth(ctx context.Context, queueName string) (int64, e
 	return count, err
 }
 
+const getQueueJobCounts = `-- name: GetQueueJobCounts :one
+SELECT
+    COALESCE(SUM(CASE WHEN j.status = 'pending' THEN 1 ELSE 0 END), 0)::BIGINT AS pending_count,
+    COALESCE(SUM(CASE WHEN j.status = 'running' THEN 1 ELSE 0 END), 0)::BIGINT AS running_count,
+    COALESCE(SUM(CASE WHEN j.status = 'completed' THEN 1 ELSE 0 END), 0)::BIGINT AS completed_count,
+    COALESCE(SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END), 0)::BIGINT AS failed_count,
+    COALESCE(SUM(CASE WHEN j.status = 'dead_letter' THEN 1 ELSE 0 END), 0)::BIGINT AS dead_letter_count
+FROM jobs j
+WHERE j.queue_name = $1
+`
+
+type GetQueueJobCountsRow struct {
+	PendingCount    int64
+	RunningCount    int64
+	CompletedCount  int64
+	FailedCount     int64
+	DeadLetterCount int64
+}
+
+func (q *Queries) GetQueueJobCounts(ctx context.Context, queueName string) (GetQueueJobCountsRow, error) {
+	row := q.db.QueryRow(ctx, getQueueJobCounts, queueName)
+	var i GetQueueJobCountsRow
+	err := row.Scan(
+		&i.PendingCount,
+		&i.RunningCount,
+		&i.CompletedCount,
+		&i.FailedCount,
+		&i.DeadLetterCount,
+	)
+	return i, err
+}
+
 const incrementJobRetryCount = `-- name: IncrementJobRetryCount :one
 UPDATE jobs
 SET retry_count = retry_count + 1,
@@ -520,6 +561,76 @@ type IncrementJobRetryCountParams struct {
 
 func (q *Queries) IncrementJobRetryCount(ctx context.Context, arg IncrementJobRetryCountParams) (Job, error) {
 	row := q.db.QueryRow(ctx, incrementJobRetryCount, arg.ScheduledAt, arg.ID)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.QueueName,
+		&i.Payload,
+		&i.MaxRetries,
+		&i.RetryCount,
+		&i.Delay,
+		&i.ScheduledAt,
+		&i.Priority,
+		&i.Status,
+		&i.IdempotencyKey,
+		&i.TaskExecutionID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listWorkersWithStatus = `-- name: ListWorkersWithStatus :many
+SELECT
+    w.id,
+    w.worker_host,
+    (w.last_heartbeat > NOW() - INTERVAL '15 seconds') AS active,
+    w.last_heartbeat
+FROM worker w
+ORDER BY w.last_heartbeat DESC
+`
+
+type ListWorkersWithStatusRow struct {
+	ID            pgtype.UUID
+	WorkerHost    string
+	Active        bool
+	LastHeartbeat pgtype.Timestamp
+}
+
+func (q *Queries) ListWorkersWithStatus(ctx context.Context) ([]ListWorkersWithStatusRow, error) {
+	rows, err := q.db.Query(ctx, listWorkersWithStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkersWithStatusRow
+	for rows.Next() {
+		var i ListWorkersWithStatusRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkerHost,
+			&i.Active,
+			&i.LastHeartbeat,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const retryJob = `-- name: RetryJob :one
+UPDATE jobs
+SET status = 'pending', retry_count = 0, updated_at = NOW()
+WHERE id = $1 AND status IN ('failed', 'dead_letter')
+RETURNING id, queue_name, payload, max_retries, retry_count, delay, scheduled_at, priority, status, idempotency_key, task_execution_id, created_at, updated_at
+`
+
+func (q *Queries) RetryJob(ctx context.Context, id pgtype.UUID) (Job, error) {
+	row := q.db.QueryRow(ctx, retryJob, id)
 	var i Job
 	err := row.Scan(
 		&i.ID,

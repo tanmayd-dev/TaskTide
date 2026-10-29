@@ -116,3 +116,31 @@ SELECT * FROM executions
 WHERE job_id = $1 AND worker_id = $2 AND finished_at IS NULL
 ORDER BY started_at DESC LIMIT 1;
 
+-- name: GetQueueJobCounts :one
+SELECT
+    COALESCE(SUM(CASE WHEN j.status = 'pending' THEN 1 ELSE 0 END), 0)::BIGINT AS pending_count,
+    COALESCE(SUM(CASE WHEN j.status = 'running' THEN 1 ELSE 0 END), 0)::BIGINT AS running_count,
+    COALESCE(SUM(CASE WHEN j.status = 'completed' THEN 1 ELSE 0 END), 0)::BIGINT AS completed_count,
+    COALESCE(SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END), 0)::BIGINT AS failed_count,
+    COALESCE(SUM(CASE WHEN j.status = 'dead_letter' THEN 1 ELSE 0 END), 0)::BIGINT AS dead_letter_count
+FROM jobs j
+WHERE j.queue_name = $1;
+
+-- name: RetryJob :one
+UPDATE jobs
+SET status = 'pending', retry_count = 0, updated_at = NOW()
+WHERE id = $1 AND status IN ('failed', 'dead_letter')
+RETURNING *;
+
+-- name: DeleteDeadLetterJob :exec
+DELETE FROM dead_letter_jobs WHERE job_id = $1;
+
+-- name: ListWorkersWithStatus :many
+SELECT
+    w.id,
+    w.worker_host,
+    (w.last_heartbeat > NOW() - INTERVAL '15 seconds') AS active,
+    w.last_heartbeat
+FROM worker w
+ORDER BY w.last_heartbeat DESC;
+

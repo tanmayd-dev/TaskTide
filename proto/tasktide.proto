@@ -11,6 +11,10 @@ service TaskTideService {
     rpc CompleteJob(CompleteRequest) returns (CompleteResponse);
     rpc SubmitJob(SubmitRequest) returns (SubmitResponse);
     rpc ExtendLease(ExtendLeaseRequest) returns (ExtendLeaseResponse);
+    rpc InspectQueue(InspectQueueRequest) returns (InspectQueueResponse);
+    rpc RetryJob(RetryJobRequest) returns (RetryJobResponse);
+    rpc ListWorkers(ListWorkersRequest) returns (ListWorkersResponse);
+    rpc PauseQueue(PauseQueueRequest) returns (PauseQueueResponse);
 }
 
 message RegisterRequest {
@@ -85,4 +89,50 @@ message ExtendLeaseRequest {
 
 message ExtendLeaseResponse {
     bool success = 1;
+}
+
+message InspectQueueRequest {
+    string queue_name = 1;
+}
+
+message InspectQueueResponse {
+    string queue_name = 1;
+    int64 pending = 2;
+    int64 running = 3;
+    int64 completed = 4;
+    int64 failed = 5;
+    int64 dead_letter = 6;
+}
+
+message RetryJobRequest {
+    string job_id = 1;
+}
+
+message RetryJobResponse {
+    string job_id = 1;
+    string status = 2;
+}
+
+message ListWorkersRequest {
+}
+
+message WorkerStatus {
+    string worker_id = 1;
+    string host = 2;
+    bool active = 3;
+    int64 last_heartbeat = 4;
+}
+
+message ListWorkersResponse {
+    repeated WorkerStatus workers = 1;
+}
+
+message PauseQueueRequest {
+    string queue_name = 1;
+    bool paused = 2;
+}
+
+message PauseQueueResponse {
+    string queue_name = 1;
+    bool paused = 2;
 }

@@ -94,7 +94,7 @@ func main() {
 	log.Println("Output validation passed: chained execution processed input sequence correctly.")
 
 	// Verify DB Persistence
-	verifyDatabasePersistence(ctx, conn, "ChainedWorkflow", 4)
+	verifyDatabasePersistence(ctx, conn, "ChainedWorkflow", executionID1, 4)
 	log.Println("=== Test Case 1 Passed ===")
 
 	// ----------------------------------------------------
@@ -120,7 +120,7 @@ func main() {
 	log.Println("Workflow execution completed successfully.")
 
 	// Verify DB Persistence
-	verifyDatabasePersistence(ctx, conn, "IndependentWorkflow", 3)
+	verifyDatabasePersistence(ctx, conn, "IndependentWorkflow", executionID2, 3)
 	log.Println("=== Test Case 2 Passed ===")
 
 	// ----------------------------------------------------
@@ -148,7 +148,7 @@ func main() {
 	log.Println("Workflow execution completed successfully.")
 
 	// Verify DB Persistence
-	verifyDatabasePersistence(ctx, conn, "MixedWorkflow", 5)
+	verifyDatabasePersistence(ctx, conn, "MixedWorkflow", executionID3, 5)
 	log.Println("=== Test Case 3 Passed ===")
 
 	// ----------------------------------------------------
@@ -180,7 +180,7 @@ func main() {
 	log.Println("Workflow execution completed successfully.")
 
 	// Verify DB Persistence and 2 attempts
-	verifyDatabasePersistence(ctx, conn, "TransientRetryWorkflow", 1)
+	verifyDatabasePersistence(ctx, conn, "TransientRetryWorkflow", executionID4, 1)
 	
 	// Query task attempts count for transientTask
 	var teID4 string
@@ -263,7 +263,7 @@ func main() {
 	log.Println("Workflow execution terminal state verified (task marked failed after retry exhaustion).")
 
 	// Verify DB Persistence
-	verifyDatabasePersistence(ctx, conn, "PermanentFailureWorkflow", 1)
+	verifyDatabasePersistence(ctx, conn, "PermanentFailureWorkflow", executionID5, 1)
 	log.Println("=== Test Case 5 Passed ===")
 
 	log.Println("\nAll Test Cases executed and verified successfully!")
@@ -447,7 +447,7 @@ func downloadFile(base string, fileID models.InputFileID) string {
 	return string(content)
 }
 
-func verifyDatabasePersistence(ctx context.Context, conn *pgx.Conn, workflowName string, expectedTaskCount int) {
+func verifyDatabasePersistence(ctx context.Context, conn *pgx.Conn, workflowName string, executionID models.WorkflowExecutionID, expectedTaskCount int) {
 	var wfID string
 	err := conn.QueryRow(ctx, "SELECT id FROM workflow_definition WHERE workflow_name = $1", workflowName).Scan(&wfID)
 	if err != nil {
@@ -466,9 +466,9 @@ func verifyDatabasePersistence(ctx context.Context, conn *pgx.Conn, workflowName
 	log.Printf("[DB OK] found %d task definitions for workflow\n", taskCount)
 
 	var execID string
-	err = conn.QueryRow(ctx, "SELECT id FROM workflow_execution WHERE workflow_base = $1 ORDER BY id DESC LIMIT 1", wfID).Scan(&execID)
+	err = conn.QueryRow(ctx, "SELECT id FROM workflow_execution WHERE id = $1", string(executionID)).Scan(&execID)
 	if err != nil {
-		log.Fatalf("Database validation failed: could not find workflow execution: %v", err)
+		log.Fatalf("Database validation failed: could not find workflow execution %s: %v", executionID, err)
 	}
 	log.Printf("[DB OK] found workflow execution (ID: %s)\n", execID)
 

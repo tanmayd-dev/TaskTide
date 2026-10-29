@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v7.36.1
-// source: tasktide.proto
+// source: proto/tasktide.proto
 
 package pb
 
@@ -25,6 +25,10 @@ const (
 	TaskTideService_CompleteJob_FullMethodName    = "/tasktide.TaskTideService/CompleteJob"
 	TaskTideService_SubmitJob_FullMethodName      = "/tasktide.TaskTideService/SubmitJob"
 	TaskTideService_ExtendLease_FullMethodName    = "/tasktide.TaskTideService/ExtendLease"
+	TaskTideService_InspectQueue_FullMethodName   = "/tasktide.TaskTideService/InspectQueue"
+	TaskTideService_RetryJob_FullMethodName       = "/tasktide.TaskTideService/RetryJob"
+	TaskTideService_ListWorkers_FullMethodName    = "/tasktide.TaskTideService/ListWorkers"
+	TaskTideService_PauseQueue_FullMethodName     = "/tasktide.TaskTideService/PauseQueue"
 )
 
 // TaskTideServiceClient is the client API for TaskTideService service.
@@ -37,6 +41,10 @@ type TaskTideServiceClient interface {
 	CompleteJob(ctx context.Context, in *CompleteRequest, opts ...grpc.CallOption) (*CompleteResponse, error)
 	SubmitJob(ctx context.Context, in *SubmitRequest, opts ...grpc.CallOption) (*SubmitResponse, error)
 	ExtendLease(ctx context.Context, in *ExtendLeaseRequest, opts ...grpc.CallOption) (*ExtendLeaseResponse, error)
+	InspectQueue(ctx context.Context, in *InspectQueueRequest, opts ...grpc.CallOption) (*InspectQueueResponse, error)
+	RetryJob(ctx context.Context, in *RetryJobRequest, opts ...grpc.CallOption) (*RetryJobResponse, error)
+	ListWorkers(ctx context.Context, in *ListWorkersRequest, opts ...grpc.CallOption) (*ListWorkersResponse, error)
+	PauseQueue(ctx context.Context, in *PauseQueueRequest, opts ...grpc.CallOption) (*PauseQueueResponse, error)
 }
 
 type taskTideServiceClient struct {
@@ -107,6 +115,46 @@ func (c *taskTideServiceClient) ExtendLease(ctx context.Context, in *ExtendLease
 	return out, nil
 }
 
+func (c *taskTideServiceClient) InspectQueue(ctx context.Context, in *InspectQueueRequest, opts ...grpc.CallOption) (*InspectQueueResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InspectQueueResponse)
+	err := c.cc.Invoke(ctx, TaskTideService_InspectQueue_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *taskTideServiceClient) RetryJob(ctx context.Context, in *RetryJobRequest, opts ...grpc.CallOption) (*RetryJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RetryJobResponse)
+	err := c.cc.Invoke(ctx, TaskTideService_RetryJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *taskTideServiceClient) ListWorkers(ctx context.Context, in *ListWorkersRequest, opts ...grpc.CallOption) (*ListWorkersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWorkersResponse)
+	err := c.cc.Invoke(ctx, TaskTideService_ListWorkers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *taskTideServiceClient) PauseQueue(ctx context.Context, in *PauseQueueRequest, opts ...grpc.CallOption) (*PauseQueueResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PauseQueueResponse)
+	err := c.cc.Invoke(ctx, TaskTideService_PauseQueue_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TaskTideServiceServer is the server API for TaskTideService service.
 // All implementations must embed UnimplementedTaskTideServiceServer
 // for forward compatibility.
@@ -117,6 +165,10 @@ type TaskTideServiceServer interface {
 	CompleteJob(context.Context, *CompleteRequest) (*CompleteResponse, error)
 	SubmitJob(context.Context, *SubmitRequest) (*SubmitResponse, error)
 	ExtendLease(context.Context, *ExtendLeaseRequest) (*ExtendLeaseResponse, error)
+	InspectQueue(context.Context, *InspectQueueRequest) (*InspectQueueResponse, error)
+	RetryJob(context.Context, *RetryJobRequest) (*RetryJobResponse, error)
+	ListWorkers(context.Context, *ListWorkersRequest) (*ListWorkersResponse, error)
+	PauseQueue(context.Context, *PauseQueueRequest) (*PauseQueueResponse, error)
 	mustEmbedUnimplementedTaskTideServiceServer()
 }
 
@@ -144,6 +196,18 @@ func (UnimplementedTaskTideServiceServer) SubmitJob(context.Context, *SubmitRequ
 }
 func (UnimplementedTaskTideServiceServer) ExtendLease(context.Context, *ExtendLeaseRequest) (*ExtendLeaseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExtendLease not implemented")
+}
+func (UnimplementedTaskTideServiceServer) InspectQueue(context.Context, *InspectQueueRequest) (*InspectQueueResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method InspectQueue not implemented")
+}
+func (UnimplementedTaskTideServiceServer) RetryJob(context.Context, *RetryJobRequest) (*RetryJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RetryJob not implemented")
+}
+func (UnimplementedTaskTideServiceServer) ListWorkers(context.Context, *ListWorkersRequest) (*ListWorkersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWorkers not implemented")
+}
+func (UnimplementedTaskTideServiceServer) PauseQueue(context.Context, *PauseQueueRequest) (*PauseQueueResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PauseQueue not implemented")
 }
 func (UnimplementedTaskTideServiceServer) mustEmbedUnimplementedTaskTideServiceServer() {}
 func (UnimplementedTaskTideServiceServer) testEmbeddedByValue()                         {}
@@ -274,6 +338,78 @@ func _TaskTideService_ExtendLease_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TaskTideService_InspectQueue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InspectQueueRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TaskTideServiceServer).InspectQueue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TaskTideService_InspectQueue_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TaskTideServiceServer).InspectQueue(ctx, req.(*InspectQueueRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TaskTideService_RetryJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetryJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TaskTideServiceServer).RetryJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TaskTideService_RetryJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TaskTideServiceServer).RetryJob(ctx, req.(*RetryJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TaskTideService_ListWorkers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TaskTideServiceServer).ListWorkers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TaskTideService_ListWorkers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TaskTideServiceServer).ListWorkers(ctx, req.(*ListWorkersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TaskTideService_PauseQueue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PauseQueueRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TaskTideServiceServer).PauseQueue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TaskTideService_PauseQueue_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TaskTideServiceServer).PauseQueue(ctx, req.(*PauseQueueRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TaskTideService_ServiceDesc is the grpc.ServiceDesc for TaskTideService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -305,7 +441,23 @@ var TaskTideService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ExtendLease",
 			Handler:    _TaskTideService_ExtendLease_Handler,
 		},
+		{
+			MethodName: "InspectQueue",
+			Handler:    _TaskTideService_InspectQueue_Handler,
+		},
+		{
+			MethodName: "RetryJob",
+			Handler:    _TaskTideService_RetryJob_Handler,
+		},
+		{
+			MethodName: "ListWorkers",
+			Handler:    _TaskTideService_ListWorkers_Handler,
+		},
+		{
+			MethodName: "PauseQueue",
+			Handler:    _TaskTideService_PauseQueue_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "tasktide.proto",
+	Metadata: "proto/tasktide.proto",
 }

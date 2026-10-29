@@ -69,8 +69,10 @@ function Workspace() {
 
   useEffect(() => {
     fetchWorkflows();
-    
-    // Set theme class on document element
+  }, []);
+
+  // Set theme class on document element
+  useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
   }, [isDark]);
 

@@ -11,63 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addWorker = `-- name: AddWorker :one
-INSERT INTO worker (
-    worker_host,
-    worker_port,
-    worker_available
-) VALUES (
-    $1, $2, TRUE
-) RETURNING id, worker_host, worker_port, worker_available
-`
-
-type AddWorkerParams struct {
-	WorkerHost string
-	WorkerPort string
-}
-
-func (q *Queries) AddWorker(ctx context.Context, arg AddWorkerParams) (Worker, error) {
-	row := q.db.QueryRow(ctx, addWorker, arg.WorkerHost, arg.WorkerPort)
-	var i Worker
-	err := row.Scan(
-		&i.ID,
-		&i.WorkerHost,
-		&i.WorkerPort,
-		&i.WorkerAvailable,
-	)
-	return i, err
-}
-
-const assignWorkerToTask = `-- name: AssignWorkerToTask :one
-UPDATE task_execution
-SET task_assigned = TRUE,
-    task_worker = $1
-WHERE id = $2
-  AND task_assigned = FALSE
-RETURNING id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id
-`
-
-type AssignWorkerToTaskParams struct {
-	TaskWorker pgtype.UUID
-	ID         pgtype.UUID
-}
-
-func (q *Queries) AssignWorkerToTask(ctx context.Context, arg AssignWorkerToTaskParams) (TaskExecution, error) {
-	row := q.db.QueryRow(ctx, assignWorkerToTask, arg.TaskWorker, arg.ID)
-	var i TaskExecution
-	err := row.Scan(
-		&i.ID,
-		&i.TaskBase,
-		&i.TaskWorker,
-		&i.TaskAssigned,
-		&i.TaskCompleted,
-		&i.TaskInput,
-		&i.TaskOutput,
-		&i.WorkflowID,
-	)
-	return i, err
-}
-
 const deleteWorker = `-- name: DeleteWorker :exec
 DELETE FROM worker WHERE (
     id = $1
@@ -79,53 +22,119 @@ func (q *Queries) DeleteWorker(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
-const getAvailableWorker = `-- name: GetAvailableWorker :one
-SELECT id, worker_host, worker_port, worker_available FROM worker WHERE (
-    worker_available = TRUE
-) LIMIT 1
+const getActiveWorkers = `-- name: GetActiveWorkers :many
+SELECT id, worker_host, worker_port, worker_available, concurrency, capabilities, last_heartbeat FROM worker
+WHERE last_heartbeat >= $1
 `
 
-func (q *Queries) GetAvailableWorker(ctx context.Context) (Worker, error) {
-	row := q.db.QueryRow(ctx, getAvailableWorker)
+func (q *Queries) GetActiveWorkers(ctx context.Context, lastHeartbeat pgtype.Timestamp) ([]Worker, error) {
+	rows, err := q.db.Query(ctx, getActiveWorkers, lastHeartbeat)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Worker
+	for rows.Next() {
+		var i Worker
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkerHost,
+			&i.WorkerPort,
+			&i.WorkerAvailable,
+			&i.Concurrency,
+			&i.Capabilities,
+			&i.LastHeartbeat,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDeadWorkers = `-- name: GetDeadWorkers :many
+SELECT id, worker_host, worker_port, worker_available, concurrency, capabilities, last_heartbeat FROM worker
+WHERE last_heartbeat < $1
+`
+
+func (q *Queries) GetDeadWorkers(ctx context.Context, lastHeartbeat pgtype.Timestamp) ([]Worker, error) {
+	rows, err := q.db.Query(ctx, getDeadWorkers, lastHeartbeat)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Worker
+	for rows.Next() {
+		var i Worker
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkerHost,
+			&i.WorkerPort,
+			&i.WorkerAvailable,
+			&i.Concurrency,
+			&i.Capabilities,
+			&i.LastHeartbeat,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const registerWorkerWithMetadata = `-- name: RegisterWorkerWithMetadata :one
+INSERT INTO worker (
+    worker_host,
+    worker_port,
+    worker_available,
+    concurrency,
+    capabilities,
+    last_heartbeat
+) VALUES (
+    $1, $2, TRUE, $3, $4, NOW()
+) RETURNING id, worker_host, worker_port, worker_available, concurrency, capabilities, last_heartbeat
+`
+
+type RegisterWorkerWithMetadataParams struct {
+	WorkerHost   string
+	WorkerPort   string
+	Concurrency  int32
+	Capabilities []string
+}
+
+func (q *Queries) RegisterWorkerWithMetadata(ctx context.Context, arg RegisterWorkerWithMetadataParams) (Worker, error) {
+	row := q.db.QueryRow(ctx, registerWorkerWithMetadata,
+		arg.WorkerHost,
+		arg.WorkerPort,
+		arg.Concurrency,
+		arg.Capabilities,
+	)
 	var i Worker
 	err := row.Scan(
 		&i.ID,
 		&i.WorkerHost,
 		&i.WorkerPort,
 		&i.WorkerAvailable,
+		&i.Concurrency,
+		&i.Capabilities,
+		&i.LastHeartbeat,
 	)
 	return i, err
 }
 
-const markWorkerAvailable = `-- name: MarkWorkerAvailable :exec
-UPDATE worker SET
-worker_available = TRUE
-WHERE (
-    id = $1
-)
-`
-
-func (q *Queries) MarkWorkerAvailable(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, markWorkerAvailable, id)
-	return err
-}
-
-const markWorkerUnavailable = `-- name: MarkWorkerUnavailable :one
+const updateWorkerHeartbeat = `-- name: UpdateWorkerHeartbeat :exec
 UPDATE worker
-SET worker_available = FALSE
+SET last_heartbeat = NOW()
 WHERE id = $1
-  AND worker_available = TRUE
-RETURNING id, worker_host, worker_port, worker_available
 `
 
-func (q *Queries) MarkWorkerUnavailable(ctx context.Context, id pgtype.UUID) (Worker, error) {
-	row := q.db.QueryRow(ctx, markWorkerUnavailable, id)
-	var i Worker
-	err := row.Scan(
-		&i.ID,
-		&i.WorkerHost,
-		&i.WorkerPort,
-		&i.WorkerAvailable,
-	)
-	return i, err
+func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, updateWorkerHeartbeat, id)
+	return err
 }

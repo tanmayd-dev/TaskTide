@@ -55,6 +55,11 @@ function Workspace() {
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [menuScreenPos, setMenuScreenPos] = useState({ x: 0, y: 0 });
 
+  // Canvas dirtiness: true when the canvas diverged from the saved backend
+  // workflow (file uploads, node/edge edits). Run re-saves when set, so
+  // post-save file attachments reach task_input_file before execution.
+  const canvasDirtyRef = useRef(false);
+
   // 1. Initial Load: Fetch workflow definitions
   const fetchWorkflows = async () => {
     try {
@@ -69,8 +74,10 @@ function Workspace() {
 
   useEffect(() => {
     fetchWorkflows();
-    
-    // Set theme class on document element
+  }, []);
+
+  // Set theme class on document element
+  useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
   }, [isDark]);
 
@@ -117,6 +124,7 @@ function Workspace() {
         return node;
       })
     );
+    canvasDirtyRef.current = true;
     setStatusText('File uploaded successfully');
     setStatusType('success');
   }, [setNodes]);
@@ -157,13 +165,15 @@ function Workspace() {
       }
     };
     setNodes((nds) => nds.concat(newNode));
+    canvasDirtyRef.current = true;
     return id;
   }, [setNodes, onUploadStart, onUploadSuccess, onUploadError]);
 
   // Connect edges
   const onConnect = useCallback(
-    (params) =>
-      setEdges((eds) =>
+    (params) => {
+      canvasDirtyRef.current = true;
+      return setEdges((eds) =>
         addEdge(
           {
             ...params,
@@ -175,7 +185,8 @@ function Workspace() {
           },
           eds
         )
-      ),
+      );
+    },
     [setEdges, isDark]
   );
 
@@ -238,6 +249,7 @@ function Workspace() {
       event.preventDefault();
       event.stopPropagation();
       setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+      canvasDirtyRef.current = true;
       setStatusText('Connection deleted');
       setStatusType('info');
     },
@@ -327,6 +339,7 @@ function Workspace() {
 
       setNodes(newNodes);
       setEdges(newEdges);
+      canvasDirtyRef.current = false;
       setStatusText('Workflow loaded');
       setStatusType('success');
     } catch (err) {
@@ -366,6 +379,7 @@ function Workspace() {
 
     setStatusText(`Created workflow draft: "${name.trim()}". Save to persist.`);
     setStatusType('success');
+    canvasDirtyRef.current = false;
   };
 
   // Topological sorting helper
@@ -402,12 +416,26 @@ function Workspace() {
   };
 
   // 4. Save Workflow Action
+  // Returns the saved workflow ID (or null if cancelled/failed) so callers
+  // (e.g. handleRunWorkflow's save-then-run) can chain off it.
   const handleSaveWorkflow = async () => {
-    if (!currentWorkflowName) return;
+    if (nodes.length === 0) return null;
 
     try {
       setStatusText('Saving workflow...');
       setStatusType('running');
+
+      let workflowName = currentWorkflowName;
+      if (!workflowName) {
+        const name = prompt('Enter a name for this workflow:', 'My Custom Workflow');
+        if (!name || !name.trim()) {
+          setStatusText('Save cancelled — workflow name required');
+          setStatusType('error');
+          return null;
+        }
+        workflowName = name.trim();
+        setCurrentWorkflowName(workflowName);
+      }
 
       // Sort nodes topologically
       let sortedNodes;
@@ -416,11 +444,11 @@ function Workspace() {
       } catch (err) {
         setStatusText(err.message);
         setStatusType('error');
-        return;
+        return null;
       }
 
       // Create workflow definition
-      const workflow = await TaskTideAPI.createWorkflow(currentWorkflowName);
+      const workflow = await TaskTideAPI.createWorkflow(workflowName);
       const workflowId = workflow.id;
 
       const clientToBackendMap = {};
@@ -446,15 +474,34 @@ function Workspace() {
         clientToBackendMap[node.id] = createdTask.id;
       }
 
+      // Adopt backend task IDs on the canvas so execution monitors and
+      // edges keep resolving node labels after the save.
+      setNodes((nds) =>
+        nds.map((node) => {
+          const backendId = clientToBackendMap[node.id];
+          return backendId ? { ...node, id: backendId } : node;
+        })
+      );
+      setEdges((eds) =>
+        eds.map((edge) => ({
+          ...edge,
+          source: clientToBackendMap[edge.source] || edge.source,
+          target: clientToBackendMap[edge.target] || edge.target
+        }))
+      );
+
       setSelectedWorkflowId(workflowId);
       await fetchWorkflows();
 
+      canvasDirtyRef.current = false;
       setStatusText('Workflow saved successfully!');
       setStatusType('success');
+      return workflowId;
     } catch (err) {
       console.error(err);
       setStatusText(`Save failed: ${err.message}`);
       setStatusType('error');
+      return null;
     }
   };
 
@@ -475,6 +522,8 @@ function Workspace() {
               let executionState = 'idle';
               if (exec.task_completed) {
                 executionState = 'completed';
+              } else if (exec.task_failed) {
+                executionState = 'failed';
               } else if (exec.task_assigned) {
                 executionState = 'running';
               }
@@ -510,13 +559,23 @@ function Workspace() {
 
   // 5. Run Execution Action
   const handleRunWorkflow = async () => {
-    if (!selectedWorkflowId) return;
+    if (nodes.length === 0) return;
 
     try {
+      let workflowId = selectedWorkflowId;
+
+      // Save first when the canvas is unsaved OR has drifted from the saved
+      // definition (e.g. a file attached after the last save) so the run
+      // always executes what is currently on the canvas.
+      if (!workflowId || canvasDirtyRef.current) {
+        workflowId = await handleSaveWorkflow();
+        if (!workflowId) return;
+      }
+
       setStatusText('Triggering workflow run...');
       setStatusType('running');
 
-      const run = await TaskTideAPI.startWorkflow(selectedWorkflowId);
+      const run = await TaskTideAPI.startWorkflow(workflowId);
       const execId = run.id;
 
       setExecutionId(execId);
@@ -537,6 +596,7 @@ function Workspace() {
     if (selectedNodeIds.length > 0) {
       setNodes((nds) => nds.filter((node) => !node.selected));
       setEdges((eds) => eds.filter((edge) => !edge.selected && !selectedNodeIds.includes(edge.source) && !selectedNodeIds.includes(edge.target)));
+      canvasDirtyRef.current = true;
       setStatusText('Selected node(s) deleted');
       setStatusType('info');
       return;
@@ -545,6 +605,7 @@ function Workspace() {
     const selectedEdges = edges.filter(e => e.selected);
     if (selectedEdges.length > 0) {
       setEdges((eds) => eds.filter((edge) => !edge.selected));
+      canvasDirtyRef.current = true;
       setStatusText('Selected connection(s) deleted');
       setStatusType('info');
       return;
@@ -560,6 +621,7 @@ function Workspace() {
       setEdges([]);
       setSelectedWorkflowId(null);
       setCurrentWorkflowName('');
+      canvasDirtyRef.current = false;
       setStatusText('Workspace cleared');
       setStatusType('info');
     }
@@ -584,8 +646,8 @@ function Workspace() {
         onRun={handleRunWorkflow}
         onDeleteSelected={handleDeleteSelected}
         onClearAll={handleClearAll}
-        isSaveDisabled={!currentWorkflowName || nodes.length === 0}
-        isRunDisabled={!selectedWorkflowId}
+        isSaveDisabled={nodes.length === 0}
+        isRunDisabled={nodes.length === 0}
         isDark={isDark}
         onToggleTheme={handleToggleTheme}
         statusText={statusText}
@@ -668,10 +730,13 @@ function Workspace() {
           status={
             taskExecutions.length > 0 && taskExecutions.every((t) => t.task_completed)
               ? 'completed'
-              : 'running'
+              : taskExecutions.some((t) => t.task_failed)
+                ? 'failed'
+                : 'running'
           }
           taskExecutions={taskExecutions}
           nodes={nodes}
+          edges={edges}
         />
       </div>
     </div>

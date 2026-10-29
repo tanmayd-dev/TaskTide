@@ -75,7 +75,9 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 	}
 
 	// Update worker heartbeat on poll
-	_ = h.Queries.UpdateWorkerHeartbeat(ctx, workerUUID)
+	if err := h.Queries.UpdateWorkerHeartbeat(ctx, workerUUID); err != nil {
+		log.Printf("PollJobs: failed to update heartbeat for worker %s: %v\n", workerUUID.String(), err)
+	}
 
 	if req.FreeSlots <= 0 {
 		return &pb.PollResponse{}, nil
@@ -235,15 +237,19 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 		return nil, status.Errorf(codes.FailedPrecondition, "worker does not hold active lease for job")
 	}
 
-	var queueName string = "default"
 	job, err := h.Queries.GetJob(ctx, jobUUID)
-	if err == nil {
-		queueName = job.QueueName
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get job: %v", err)
 	}
+	queueName := job.QueueName
 
 	// Mark lease completed and release it
-	_ = h.Queries.MarkLeaseCompleted(ctx, jobUUID)
-	_ = h.Queries.ReleaseLease(ctx, jobUUID)
+	if err := h.Queries.MarkLeaseCompleted(ctx, jobUUID); err != nil {
+		log.Printf("CompleteJob: failed to mark lease completed for job %s: %v\n", jobUUID.String(), err)
+	}
+	if err := h.Queries.ReleaseLease(ctx, jobUUID); err != nil {
+		log.Printf("CompleteJob: failed to release lease for job %s: %v\n", jobUUID.String(), err)
+	}
 
 	// Update execution status
 	execStatus := "succeeded"
@@ -255,11 +261,18 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 		JobID:    jobUUID,
 		WorkerID: req.WorkerId,
 	})
-	if err == nil {
-		_ = h.Queries.UpdateExecutionStatus(ctx, db.UpdateExecutionStatusParams{
+	if err != nil {
+		// No matchable execution record (e.g. expired/re-acquired lease) —
+		// skip the execution update and attempt log below; the retry
+		// schedule itself must NOT be dropped.
+		log.Printf("CompleteJob: no active execution found for job %s (worker %s): %v\n", jobUUID.String(), req.WorkerId, err)
+	} else {
+		if err := h.Queries.UpdateExecutionStatus(ctx, db.UpdateExecutionStatusParams{
 			Status: execStatus,
 			ID:     exec.ID,
-		})
+		}); err != nil {
+			log.Printf("CompleteJob: failed to update execution %s for job %s: %v\n", exec.ID.String(), jobUUID.String(), err)
+		}
 
 		// Record latency
 		duration := time.Since(exec.StartedAt.Time).Seconds()
@@ -272,51 +285,64 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 	isTerminal := false
 
 	if req.Success {
-		_, _ = h.Queries.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
+		if _, err := h.Queries.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
 			Status: "completed",
 			ID:     jobUUID,
-		})
+		}); err != nil {
+			log.Printf("CompleteJob: failed to mark job %s completed: %v\n", jobUUID.String(), err)
+		}
 		observability.JobExecutionCounter.WithLabelValues(queueName, "succeeded").Inc()
 		isTerminal = true
 	} else {
-		if err == nil {
-			if job.RetryCount < job.MaxRetries {
-				// Calculate exponential backoff duration: 2^(retry_count) * 2 seconds
-				backoffSec := 1 << (job.RetryCount) * 2
-				nextExec := time.Now().Add(time.Duration(backoffSec) * time.Second)
-				_, _ = h.Queries.IncrementJobRetryCount(ctx, db.IncrementJobRetryCountParams{
-					ScheduledAt: pgtype.Timestamptz{Time: nextExec, Valid: true},
-					ID:          jobUUID,
-				})
-				log.Printf("CompleteJob: Job %s failed. Retry count incremented to %d. Scheduled for %v.\n", jobUUID.String(), job.RetryCount+1, nextExec)
-
-				observability.JobExecutionCounter.WithLabelValues(queueName, "failed_retry").Inc()
-				observability.RetryCounter.WithLabelValues(queueName).Inc()
-
-				// Log retry attempt in retries table — but do NOT update workflow state yet.
-				if exec.ID.Valid {
-					_, _ = h.Queries.CreateRetry(ctx, db.CreateRetryParams{
-						JobID:         jobUUID,
-						ExecutionID:   exec.ID,
-						AttemptNumber: job.RetryCount + 1,
-						ErrorReason:   pgtype.Text{String: req.ErrorReason, Valid: req.ErrorReason != ""},
-					})
-				}
-				// isTerminal remains false — workflow task_execution is NOT marked done yet.
-			} else {
-				// Max retries exceeded - move to DLQ
-				_, _ = h.Queries.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
-					Status: "dead_letter",
-					ID:     jobUUID,
-				})
-				_, _ = h.Queries.CreateDeadLetterJob(ctx, db.CreateDeadLetterJobParams{
-					JobID:       jobUUID,
-					ErrorReason: pgtype.Text{String: req.ErrorReason, Valid: req.ErrorReason != ""},
-				})
-				log.Printf("CompleteJob: Job %s failed and retries exhausted. Moved to DLQ.\n", jobUUID.String())
-				observability.JobExecutionCounter.WithLabelValues(queueName, "exhausted_dlq").Inc()
-				isTerminal = true
+		if job.RetryCount < job.MaxRetries {
+			// Calculate exponential backoff duration with jitter
+			nextExec := time.Now().Add(nextBackoff(job.RetryCount))
+			if _, err := h.Queries.IncrementJobRetryCount(ctx, db.IncrementJobRetryCountParams{
+				ScheduledAt: pgtype.Timestamptz{Time: nextExec, Valid: true},
+				ID:          jobUUID,
+			}); err != nil {
+				log.Printf("CompleteJob: failed to schedule retry for job %s: %v\n", jobUUID.String(), err)
 			}
+			log.Printf("CompleteJob: Job %s failed. Retry count incremented to %d. Scheduled for %v.\n", jobUUID.String(), job.RetryCount+1, nextExec)
+
+			observability.JobExecutionCounter.WithLabelValues(queueName, "failed_retry").Inc()
+			observability.RetryCounter.WithLabelValues(queueName).Inc()
+
+			// Log retry attempt in retries table — but do NOT update workflow state yet.
+			if exec.ID.Valid {
+				if _, err := h.Queries.CreateRetry(ctx, db.CreateRetryParams{
+					JobID:         jobUUID,
+					ExecutionID:   exec.ID,
+					AttemptNumber: job.RetryCount + 1,
+					ErrorReason:   pgtype.Text{String: req.ErrorReason, Valid: req.ErrorReason != ""},
+				}); err != nil {
+					log.Printf("CompleteJob: failed to record retry attempt for job %s: %v\n", jobUUID.String(), err)
+				}
+			}
+			// isTerminal remains false — workflow task_execution is NOT marked done yet.
+		} else {
+			// Max retries exceeded - move to DLQ
+			if _, err := h.Queries.UpdateJobStatus(ctx, db.UpdateJobStatusParams{
+				Status: "dead_letter",
+				ID:     jobUUID,
+			}); err != nil {
+				log.Printf("CompleteJob: failed to move job %s to dead_letter: %v\n", jobUUID.String(), err)
+			}
+			if _, err := h.Queries.CreateDeadLetterJob(ctx, db.CreateDeadLetterJobParams{
+				JobID:       jobUUID,
+				ErrorReason: pgtype.Text{String: req.ErrorReason, Valid: req.ErrorReason != ""},
+			}); err != nil {
+				log.Printf("CompleteJob: failed to create dead letter record for job %s: %v\n", jobUUID.String(), err)
+			}
+			// Mark the workflow task as failed so downstream work is never fanned out.
+			if job.TaskExecutionID.Valid {
+				if err := h.Queries.MarkTaskFailed(ctx, job.TaskExecutionID); err != nil {
+					log.Printf("CompleteJob: failed to mark task %s failed for job %s: %v\n", job.TaskExecutionID.String(), jobUUID.String(), err)
+				}
+			}
+			log.Printf("CompleteJob: Job %s failed and retries exhausted. Moved to DLQ.\n", jobUUID.String())
+			observability.JobExecutionCounter.WithLabelValues(queueName, "exhausted_dlq").Inc()
+			isTerminal = true
 		}
 	}
 
@@ -326,7 +352,9 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 	// only happens at a terminal state to avoid premature workflow progression.
 	if job.TaskExecutionID.Valid {
 		taskExec, err := h.Queries.GetTaskExecution(ctx, job.TaskExecutionID)
-		if err == nil {
+		if err != nil {
+			log.Printf("CompleteJob: failed to fetch task execution for job %s: %v\n", jobUUID.String(), err)
+		} else {
 			taskExecModel := models.WorkerTaskExecution{
 				ID:         models.TaskExecutionID(taskExec.ID.String()),
 				TaskWorker: models.WorkerID(taskExec.TaskWorker.String()),
@@ -338,12 +366,17 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 			}
 
 			// Record this execution attempt regardless of outcome
-			_ = repositories.CreateTaskAttempt(ctx, h.Queries, taskExecModel)
+			if err := repositories.CreateTaskAttempt(ctx, h.Queries, taskExecModel); err != nil {
+				log.Printf("CompleteJob: failed to create task attempt for task %s (job %s): %v\n", taskExecModel.ID, jobUUID, err)
+			}
 
-			// Only finalise the workflow state at a terminal outcome
-			if isTerminal {
-				// If success and task execution has output file defined, update the content in storage
-				if req.Success && taskExec.TaskOutput.Valid {
+			// Only finalise the workflow state on a terminal success. A
+			// terminal failure was already handled by MarkTaskFailed in the
+			// failure branch above and must NEVER mark the task complete
+			// or fan out downstream work.
+			if isTerminal && req.Success {
+				// If task execution has output file defined, update the content in storage
+				if taskExec.TaskOutput.Valid {
 					bucketName := os.Getenv("FILES_BUCKET_NAME")
 					if bucketName == "" {
 						bucketName = "files"
@@ -355,12 +388,12 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 				}
 
 				// Mark task completed in workflow system
-				_ = repositories.MarkTaskComplete(ctx, h.Queries, taskExecModel.ID)
-
-				// If workflow task succeeded, submit any downstream tasks that are now ready
-				if req.Success {
-					go h.checkAndSubmitWorkflowJobs(context.Background())
+				if err := repositories.MarkTaskComplete(ctx, h.Queries, taskExecModel.ID); err != nil {
+					log.Printf("CompleteJob: failed to mark task %s complete: %v\n", taskExecModel.ID, err)
 				}
+
+				// Workflow task succeeded: submit any downstream tasks that are now ready
+				go h.checkAndSubmitWorkflowJobs(context.Background())
 			}
 		}
 	}
@@ -395,26 +428,41 @@ func (h *GrpcHandler) SubmitJob(ctx context.Context, req *pb.SubmitRequest) (*pb
 	ctx, span := observability.Tracer.Start(ctx, "SubmitJob")
 	defer span.End()
 
-	// Check Idempotency Key
-	if req.IdempotencyKey != "" {
-		existingJob, err := h.Queries.GetJobByIdempotencyKey(ctx, pgtype.Text{String: req.IdempotencyKey, Valid: true})
-		if err == nil {
-			log.Printf("SubmitJob: Idempotency hit! Returning existing job ID: %s\n", existingJob.ID.String())
-			return &pb.SubmitResponse{JobId: existingJob.ID.String(), Status: existingJob.Status}, nil
-		}
+	// Clamp retry budget: values outside [0, 20] are rejected in favour of 3.
+	maxRetries := req.MaxRetries
+	if maxRetries < 0 || maxRetries > 20 {
+		maxRetries = 3
 	}
 
-	_ = h.Queries.EnsureQueueExists(ctx, req.QueueName)
-	j, err := h.Queries.CreateJob(ctx, db.CreateJobParams{
-		QueueName:      req.QueueName,
-		Payload:        []byte(req.PayloadJson),
-		MaxRetries:     req.MaxRetries,
-		Delay:          req.DelaySeconds,
-		ScheduledAt:    pgtype.Timestamptz{Time: time.Now().Add(time.Duration(req.DelaySeconds) * time.Second), Valid: true},
-		Priority:       req.Priority,
-		IdempotencyKey: pgtype.Text{String: req.IdempotencyKey, Valid: req.IdempotencyKey != ""},
+	if err := h.Queries.EnsureQueueExists(ctx, req.QueueName); err != nil {
+		log.Printf("SubmitJob: failed to ensure queue %s exists: %v\n", req.QueueName, err)
+	}
+	// CreateJobWithIdempotency resolves the submit race atomically: on an
+	// idempotency-key conflict the insert is a no-op and we fall back to
+	// returning the existing job.
+	j, err := h.Queries.CreateJobWithIdempotency(ctx, db.CreateJobWithIdempotencyParams{
+		QueueName:       req.QueueName,
+		Payload:         []byte(req.PayloadJson),
+		MaxRetries:      maxRetries,
+		Delay:           req.DelaySeconds,
+		ScheduledAt:     pgtype.Timestamptz{Time: time.Now().Add(time.Duration(req.DelaySeconds) * time.Second), Valid: true},
+		Priority:        req.Priority,
+		IdempotencyKey:  pgtype.Text{String: req.IdempotencyKey, Valid: req.IdempotencyKey != ""},
+		TaskExecutionID: pgtype.UUID{},
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Conflict + DO NOTHING: a job with this idempotency key already exists.
+			if req.IdempotencyKey == "" {
+				return nil, status.Errorf(codes.Internal, "failed to create job: %v", err)
+			}
+			existingJob, fetchErr := h.Queries.GetJobByIdempotencyKey(ctx, pgtype.Text{String: req.IdempotencyKey, Valid: true})
+			if fetchErr != nil {
+				return nil, status.Errorf(codes.Internal, "failed to fetch existing job by idempotency key: %v", fetchErr)
+			}
+			log.Printf("SubmitJob: Idempotency conflict! Returning existing job ID: %s\n", existingJob.ID.String())
+			return &pb.SubmitResponse{JobId: existingJob.ID.String(), Status: existingJob.Status}, nil
+		}
 		return nil, status.Errorf(codes.Internal, "failed to create job: %v", err)
 	}
 
@@ -456,7 +504,9 @@ func (h *GrpcHandler) checkAndSubmitWorkflowJobs(ctx context.Context) {
 			continue
 		}
 
-		_ = h.Queries.EnsureQueueExists(ctx, "default")
+		if err := h.Queries.EnsureQueueExists(ctx, "default"); err != nil {
+			log.Printf("checkAndSubmitWorkflowJobs: EnsureQueueExists erred: %v\n", err)
+		}
 		_, err = h.Queries.CreateJob(ctx, db.CreateJobParams{
 			QueueName:       "default",
 			Payload:         payloadBytes,

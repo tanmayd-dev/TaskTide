@@ -178,6 +178,56 @@ func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, erro
 	return i, err
 }
 
+const createJobWithIdempotency = `-- name: CreateJobWithIdempotency :one
+INSERT INTO jobs (
+    queue_name, payload, max_retries, retry_count, delay, scheduled_at, priority, status, idempotency_key, task_execution_id
+) VALUES (
+    $1, $2, $3, 0, $4, $5, $6, 'pending', $7, $8
+) ON CONFLICT (idempotency_key) DO NOTHING
+RETURNING id, queue_name, payload, max_retries, retry_count, delay, scheduled_at, priority, status, idempotency_key, task_execution_id, created_at, updated_at
+`
+
+type CreateJobWithIdempotencyParams struct {
+	QueueName       string
+	Payload         []byte
+	MaxRetries      int32
+	Delay           int32
+	ScheduledAt     pgtype.Timestamptz
+	Priority        int32
+	IdempotencyKey  pgtype.Text
+	TaskExecutionID pgtype.UUID
+}
+
+func (q *Queries) CreateJobWithIdempotency(ctx context.Context, arg CreateJobWithIdempotencyParams) (Job, error) {
+	row := q.db.QueryRow(ctx, createJobWithIdempotency,
+		arg.QueueName,
+		arg.Payload,
+		arg.MaxRetries,
+		arg.Delay,
+		arg.ScheduledAt,
+		arg.Priority,
+		arg.IdempotencyKey,
+		arg.TaskExecutionID,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.QueueName,
+		&i.Payload,
+		&i.MaxRetries,
+		&i.RetryCount,
+		&i.Delay,
+		&i.ScheduledAt,
+		&i.Priority,
+		&i.Status,
+		&i.IdempotencyKey,
+		&i.TaskExecutionID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createRetry = `-- name: CreateRetry :one
 INSERT INTO retries (
     job_id, execution_id, attempt_number, retry_at, error_reason
@@ -338,6 +388,49 @@ func (q *Queries) GetJobByIdempotencyKey(ctx context.Context, idempotencyKey pgt
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getOrphanedRunningJobs = `-- name: GetOrphanedRunningJobs :many
+SELECT j.id, j.queue_name, j.payload, j.max_retries, j.retry_count, j.delay, j.scheduled_at, j.priority, j.status, j.idempotency_key, j.task_execution_id, j.created_at, j.updated_at FROM jobs j
+WHERE j.status = 'running'
+  AND NOT EXISTS (
+    SELECT 1 FROM worker_leases l
+    WHERE l.job_id = j.id AND l.completed = FALSE
+  )
+`
+
+func (q *Queries) GetOrphanedRunningJobs(ctx context.Context) ([]Job, error) {
+	rows, err := q.db.Query(ctx, getOrphanedRunningJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.ID,
+			&i.QueueName,
+			&i.Payload,
+			&i.MaxRetries,
+			&i.RetryCount,
+			&i.Delay,
+			&i.ScheduledAt,
+			&i.Priority,
+			&i.Status,
+			&i.IdempotencyKey,
+			&i.TaskExecutionID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getPendingJobs = `-- name: GetPendingJobs :many

@@ -25,6 +25,14 @@ INSERT INTO jobs (
     $1, $2, $3, 0, $4, $5, $6, 'pending', $7, $8
 ) RETURNING *;
 
+-- name: CreateJobWithIdempotency :one
+INSERT INTO jobs (
+    queue_name, payload, max_retries, retry_count, delay, scheduled_at, priority, status, idempotency_key, task_execution_id
+) VALUES (
+    $1, $2, $3, 0, $4, $5, $6, 'pending', $7, $8
+) ON CONFLICT (idempotency_key) DO NOTHING
+RETURNING *;
+
 -- name: GetJob :one
 SELECT * FROM jobs WHERE id = $1;
 
@@ -45,6 +53,14 @@ SET retry_count = retry_count + 1,
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: GetOrphanedRunningJobs :many
+SELECT j.* FROM jobs j
+WHERE j.status = 'running'
+  AND NOT EXISTS (
+    SELECT 1 FROM worker_leases l
+    WHERE l.job_id = j.id AND l.completed = FALSE
+  );
 
 -- name: GetPendingJobs :many
 SELECT j.* FROM jobs j

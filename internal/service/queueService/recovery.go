@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tanmayd-dev/TaskTide/internal/db"
 )
 
@@ -20,7 +21,7 @@ func nextBackoff(retryCount int32) time.Duration {
 	return backoff/2 + jitter
 }
 
-func StartRecoveryLoop(ctx context.Context, queries *db.Queries) {
+func StartRecoveryLoop(ctx context.Context, pool *pgxpool.Pool, queries *db.Queries) {
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		defer ticker.Stop()
@@ -33,10 +34,15 @@ func StartRecoveryLoop(ctx context.Context, queries *db.Queries) {
 				recoverDeadWorkers(ctx, queries)
 				recoverExpiredLeases(ctx, queries)
 				// Reconcile jobs stuck in 'running' without an active lease
-				// on every 2nd tick.
+				// on every 2nd tick, and sweep ready unassigned tasks into
+				// the queue with the same claim-and-submit logic used when
+				// a job completes.
 				iteration++
 				if iteration%2 == 0 {
 					reconcileOrphanedJobs(ctx, queries)
+					if err := claimAndSubmitReadyTasks(ctx, pool); err != nil {
+						log.Printf("Recovery: failed to submit ready unassigned tasks: %v\n", err)
+					}
 				}
 			}
 		}

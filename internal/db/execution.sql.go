@@ -71,6 +71,66 @@ func (q *Queries) CreateWorkflowExecution(ctx context.Context, workflowBase pgty
 	return i, err
 }
 
+const getReadyUnassignedTasks = `-- name: GetReadyUnassignedTasks :many
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_failed, task_input, task_output, workflow_id FROM task_execution A
+WHERE (
+    A.task_assigned = FALSE AND
+    A.task_completed = FALSE AND
+    A.task_failed = FALSE AND
+    NOT EXISTS (
+        SELECT 1 FROM task_definition_depends d
+        LEFT JOIN task_execution dep
+            ON dep.workflow_id = A.workflow_id
+            AND dep.task_base = d.task_depends_on
+        WHERE d.task_id = A.task_base
+          AND (dep.task_completed = FALSE OR dep.task_failed = TRUE OR dep.id IS NULL)
+    )
+)
+FOR UPDATE SKIP LOCKED
+`
+
+type GetReadyUnassignedTasksRow struct {
+	ID            pgtype.UUID
+	TaskBase      pgtype.UUID
+	TaskWorker    pgtype.UUID
+	TaskAssigned  bool
+	TaskCompleted bool
+	TaskFailed    bool
+	TaskInput     pgtype.UUID
+	TaskOutput    pgtype.UUID
+	WorkflowID    pgtype.UUID
+}
+
+func (q *Queries) GetReadyUnassignedTasks(ctx context.Context) ([]GetReadyUnassignedTasksRow, error) {
+	rows, err := q.db.Query(ctx, getReadyUnassignedTasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetReadyUnassignedTasksRow
+	for rows.Next() {
+		var i GetReadyUnassignedTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskBase,
+			&i.TaskWorker,
+			&i.TaskAssigned,
+			&i.TaskCompleted,
+			&i.TaskFailed,
+			&i.TaskInput,
+			&i.TaskOutput,
+			&i.WorkflowID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTaskExecution = `-- name: GetTaskExecution :one
 SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id, task_failed FROM task_execution
 WHERE id =  $1

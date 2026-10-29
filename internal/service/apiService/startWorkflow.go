@@ -1,12 +1,8 @@
 package apiservice
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
 	"os"
 
 	"github.com/minio/minio-go/v7"
@@ -94,24 +90,12 @@ func StartWorkflow(queries *db.Queries, ctx context.Context, minioClient *minio.
 			}
 			delete(dependents, taskID)
 			task := taskIDToModel[taskID]
-			jsonTask, err := json.Marshal(task)
+			// Task submission no longer POSTs to the queue: the coordinator
+			// sweep claims ready task executions and submits their jobs, so
+			// enqueueing a task now means creating its task_execution row.
+			_, err := repositories.CreateTaskExecution(ctx, queries, task.ID, task.TaskInput, task.TaskOutput, workflowExecution.ID)
 			if err != nil {
-				fmt.Printf("%#v", err)
 				return "", err
-			}
-			log.Printf("sending: %#v\n", task)
-			url := fmt.Sprintf("http://%v:%v/", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT"))
-			resp, err := http.Post(
-				url,
-				"application/json",
-				bytes.NewBuffer(jsonTask),
-			)
-			if err != nil {
-				fmt.Printf("%#v", err)
-				return "", err
-			}
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				return "", fmt.Errorf("queue returned status %d", resp.StatusCode)
 			}
 		}
 	}

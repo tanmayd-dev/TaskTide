@@ -44,7 +44,7 @@ func main() {
 	_ = queries.EnsureQueueExists(ctx, "default")
 
 	// Start background recovery loop
-	queueService.StartRecoveryLoop(ctx, queries)
+	queueService.StartRecoveryLoop(ctx, pool, queries)
 
 	// Setup MinIO connection
 	minioClient, err := minio.New(

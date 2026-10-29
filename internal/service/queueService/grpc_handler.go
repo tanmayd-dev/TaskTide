@@ -7,7 +7,6 @@ import (
 	"errors"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -39,8 +38,6 @@ type GrpcHandler struct {
 	Queries     *db.Queries
 	MinioClient *minio.Client
 }
-
-var workflowSubmitMutex sync.Mutex
 
 func (h *GrpcHandler) RegisterWorker(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	log.Printf("gRPC: Registering worker %s:%s with concurrency=%d and capabilities=%v\n", req.Hostname, req.Port, req.Concurrency, req.Capabilities)
@@ -392,8 +389,13 @@ func (h *GrpcHandler) CompleteJob(ctx context.Context, req *pb.CompleteRequest) 
 					log.Printf("CompleteJob: failed to mark task %s complete: %v\n", taskExecModel.ID, err)
 				}
 
-				// Workflow task succeeded: submit any downstream tasks that are now ready
-				go h.checkAndSubmitWorkflowJobs(context.Background())
+				// Workflow task succeeded: submit any downstream tasks that are
+				// now ready. Synchronous call — bounded because gRPC handler
+				// processing serializes callers; the recovery loop sweeps as
+				// a backstop.
+				if err := claimAndSubmitReadyTasks(ctx, h.Pool); err != nil {
+					log.Printf("CompleteJob: failed to submit ready workflow tasks: %v\n", err)
+				}
 			}
 		}
 	}
@@ -471,43 +473,54 @@ func (h *GrpcHandler) SubmitJob(ctx context.Context, req *pb.SubmitRequest) (*pb
 	return &pb.SubmitResponse{JobId: j.ID.String(), Status: j.Status}, nil
 }
 
-func (h *GrpcHandler) checkAndSubmitWorkflowJobs(ctx context.Context) {
-	workflowSubmitMutex.Lock()
-	defer workflowSubmitMutex.Unlock()
-
+// claimAndSubmitReadyTasks claims ready, unassigned workflow tasks and
+// submits each one as a job. Claiming runs in a per-task transaction that
+// takes GetReadyUnassignedTasks' FOR UPDATE SKIP LOCKED row locks, so a
+// failed task rolls back unassigned and is picked up by a later sweep
+// without blocking other ready tasks.
+func claimAndSubmitReadyTasks(ctx context.Context, pool *pgxpool.Pool) error {
+	if pool == nil {
+		return errors.New("database pool is not configured")
+	}
 	for {
-		task, err := h.Queries.GetUnassignedTasks(ctx)
-		if errors.Is(err, pgx.ErrNoRows) {
-			break
-		}
+		tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
 		if err != nil {
-			log.Printf("checkAndSubmitWorkflowJobs: GetUnassignedTasks erred: %v\n", err)
-			break
+			return err
+		}
+		qtx := db.New(tx)
+
+		readyTasks, err := qtx.GetReadyUnassignedTasks(ctx)
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		if len(readyTasks) == 0 {
+			_ = tx.Rollback(ctx)
+			return nil
+		}
+		task := readyTasks[0]
+
+		if err := qtx.MarkTaskAssigned(ctx, task.ID); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
 		}
 
-		err = h.Queries.MarkTaskAssigned(ctx, task.ID)
+		taskBase, err := qtx.GetTask(ctx, task.TaskBase)
 		if err != nil {
-			log.Printf("checkAndSubmitWorkflowJobs: MarkTaskAssigned erred: %v\n", err)
-			break
+			_ = tx.Rollback(ctx)
+			return err
 		}
 
-		taskBase, err := h.Queries.GetTask(ctx, task.TaskBase)
+		payloadBytes, err := json.Marshal(utils.TaskDefinitionModel(taskBase))
 		if err != nil {
-			log.Printf("checkAndSubmitWorkflowJobs: GetTask erred: %v\n", err)
-			continue
+			_ = tx.Rollback(ctx)
+			return err
 		}
 
-		taskBaseModel := utils.TaskDefinitionModel(taskBase)
-		payloadBytes, err := json.Marshal(taskBaseModel)
-		if err != nil {
-			log.Printf("checkAndSubmitWorkflowJobs: Marshal task base erred: %v\n", err)
-			continue
+		if err := qtx.EnsureQueueExists(ctx, "default"); err != nil {
+			log.Printf("claimAndSubmitReadyTasks: EnsureQueueExists erred: %v\n", err)
 		}
-
-		if err := h.Queries.EnsureQueueExists(ctx, "default"); err != nil {
-			log.Printf("checkAndSubmitWorkflowJobs: EnsureQueueExists erred: %v\n", err)
-		}
-		_, err = h.Queries.CreateJob(ctx, db.CreateJobParams{
+		if _, err := qtx.CreateJob(ctx, db.CreateJobParams{
 			QueueName:       "default",
 			Payload:         payloadBytes,
 			MaxRetries:      2,
@@ -515,12 +528,16 @@ func (h *GrpcHandler) checkAndSubmitWorkflowJobs(ctx context.Context) {
 			ScheduledAt:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			Priority:        0,
 			IdempotencyKey:  pgtype.Text{String: "", Valid: false},
-			TaskExecutionID: pgtype.UUID{Bytes: task.ID.Bytes, Valid: true},
-		})
-		if err != nil {
-			log.Printf("checkAndSubmitWorkflowJobs: CreateJob failed: %v\n", err)
-		} else {
-			log.Printf("checkAndSubmitWorkflowJobs: Successfully submitted workflow task %s as a job\n", task.ID.String())
+			TaskExecutionID: task.ID,
+		}); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		observability.JobExecutionCounter.WithLabelValues("default", "submitted").Inc()
+		log.Printf("claimAndSubmitReadyTasks: Successfully submitted workflow task %s as a job\n", task.ID.String())
+
+		if err := tx.Commit(ctx); err != nil {
+			return err
 		}
 	}
 }

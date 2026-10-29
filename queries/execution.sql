@@ -44,6 +44,23 @@ WHERE (
     )
 ) LIMIT 1;
 
+-- name: GetReadyUnassignedTasks :many
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_failed, task_input, task_output, workflow_id FROM task_execution A
+WHERE (
+    A.task_assigned = FALSE AND
+    A.task_completed = FALSE AND
+    A.task_failed = FALSE AND
+    NOT EXISTS (
+        SELECT 1 FROM task_definition_depends d
+        LEFT JOIN task_execution dep
+            ON dep.workflow_id = A.workflow_id
+            AND dep.task_base = d.task_depends_on
+        WHERE d.task_id = A.task_base
+          AND (dep.task_completed = FALSE OR dep.task_failed = TRUE OR dep.id IS NULL)
+    )
+)
+FOR UPDATE SKIP LOCKED;
+
 -- name: GetTasksExecution :many
 SELECT * FROM task_execution WHERE (
     id = $1

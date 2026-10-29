@@ -7,6 +7,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -30,8 +33,16 @@ func main() {
 		log.Printf("Could not load .env\n")
 	}
 
+	// Initialize OpenTelemetry tracer before any Serve call so all servers
+	// emit with tracing already set up
+	tp, err := observability.InitTracer("queue-service")
+	if err == nil {
+		defer tp.Shutdown(context.Background())
+	}
+
 	// Setup PostgreSQL connection
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	conn := os.Getenv("POSTGRES_DBSTRING")
 	pool, err := pgxpool.New(ctx, conn)
 	if err != nil {
@@ -83,12 +94,6 @@ func main() {
 		}
 	}()
 
-	// Initialize OpenTelemetry tracer
-	tp, err := observability.InitTracer("queue-service")
-	if err == nil {
-		defer tp.Shutdown(ctx)
-	}
-
 	// Start background metrics collector
 	observability.StartMetricsCollector(ctx, queries)
 
@@ -109,7 +114,39 @@ func main() {
 		Addr:    fmt.Sprintf("%v:%v", os.Getenv("QUEUE_HOST"), os.Getenv("QUEUE_PORT")),
 		Handler: router,
 	}
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("failed to serve HTTP: %v", err)
+		}
+	}()
 
-	log.Fatal(server.ListenAndServe())
+	// Graceful shutdown: on SIGINT/SIGTERM stop the background loops, drain
+	// both servers with a bound, then close the pool and exit normally.
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	<-sigChan
+	log.Println("Received shutdown signal. Draining...")
+
+	cancel() // Stop the recovery loop and metrics collector.
+
+	grpcStopped := make(chan struct{})
+	go func() {
+		grpcServer.GracefulStop()
+		close(grpcStopped)
+	}()
+	select {
+	case <-grpcStopped:
+	case <-time.After(10 * time.Second):
+		grpcServer.Stop()
+	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	}
+
+	pool.Close()
+	log.Println("queue-service shut down cleanly.")
 }
 

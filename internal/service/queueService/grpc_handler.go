@@ -468,7 +468,7 @@ func (h *GrpcHandler) SubmitJob(ctx context.Context, req *pb.SubmitRequest) (*pb
 		return nil, status.Errorf(codes.Internal, "failed to create job: %v", err)
 	}
 
-	observability.JobExecutionCounter.WithLabelValues(req.QueueName, "submitted").Inc()
+	observability.JobSubmissionCounter.WithLabelValues(req.QueueName).Inc()
 
 	return &pb.SubmitResponse{JobId: j.ID.String(), Status: j.Status}, nil
 }
@@ -533,7 +533,7 @@ func claimAndSubmitReadyTasks(ctx context.Context, pool *pgxpool.Pool) error {
 			_ = tx.Rollback(ctx)
 			return err
 		}
-		observability.JobExecutionCounter.WithLabelValues("default", "submitted").Inc()
+		observability.JobSubmissionCounter.WithLabelValues("default").Inc()
 		log.Printf("claimAndSubmitReadyTasks: Successfully submitted workflow task %s as a job\n", task.ID.String())
 
 		if err := tx.Commit(ctx); err != nil {

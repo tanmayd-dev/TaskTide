@@ -100,6 +100,7 @@ services:
       - QUEUE_PORT=${QUEUE_PORT}
       - WORKER_HOST=
       - NOOP_TIME=${NOOP_TIME}
+      - ENABLE_TEST_SIMULATORS=${ENABLE_TEST_SIMULATORS}
     depends_on:
       queue:
         condition: service_started

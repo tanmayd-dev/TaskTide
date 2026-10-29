@@ -29,19 +29,37 @@ WHERE id =  $1
 LIMIT 1;
 
 -- name: GetUnassignedTasks :one
-SELECT id, task_base, task_worker, task_assigned, task_completed, task_input, task_output, workflow_id FROM task_execution A
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_failed, task_input, task_output, workflow_id FROM task_execution A
 WHERE (
     A.task_assigned = FALSE AND
     A.task_completed = FALSE AND
+    A.task_failed = FALSE AND
     NOT EXISTS (
         SELECT 1 FROM task_definition_depends d
         LEFT JOIN task_execution dep
             ON dep.workflow_id = A.workflow_id
             AND dep.task_base = d.task_depends_on
         WHERE d.task_id = A.task_base
-          AND (dep.task_completed = FALSE OR dep.id IS NULL)
+          AND (dep.task_completed = FALSE OR dep.task_failed = TRUE OR dep.id IS NULL)
     )
 ) LIMIT 1;
+
+-- name: GetReadyUnassignedTasks :many
+SELECT id, task_base, task_worker, task_assigned, task_completed, task_failed, task_input, task_output, workflow_id FROM task_execution A
+WHERE (
+    A.task_assigned = FALSE AND
+    A.task_completed = FALSE AND
+    A.task_failed = FALSE AND
+    NOT EXISTS (
+        SELECT 1 FROM task_definition_depends d
+        LEFT JOIN task_execution dep
+            ON dep.workflow_id = A.workflow_id
+            AND dep.task_base = d.task_depends_on
+        WHERE d.task_id = A.task_base
+          AND (dep.task_completed = FALSE OR dep.task_failed = TRUE OR dep.id IS NULL)
+    )
+)
+FOR UPDATE SKIP LOCKED;
 
 -- name: GetTasksExecution :many
 SELECT * FROM task_execution WHERE (
@@ -52,6 +70,15 @@ SELECT * FROM task_execution WHERE (
 UPDATE task_execution SET
 task_completed = TRUE,
 task_assigned = FALSE
+WHERE (
+    id = $1
+);
+
+-- name: MarkTaskFailed :exec
+UPDATE task_execution SET
+task_failed = TRUE,
+task_assigned = FALSE,
+task_completed = FALSE
 WHERE (
     id = $1
 );
@@ -68,3 +95,7 @@ task_worker = NULL
 WHERE (
     id = $1
 );
+-- name: MarkTaskAssigned :exec
+UPDATE task_execution
+SET task_assigned = TRUE
+WHERE id = $1;

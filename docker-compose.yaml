@@ -1,10 +1,15 @@
 services:
   postgres:
-    image: postgres:15
+    image: docker.io/library/postgres:15
     environment:
       POSTGRES_USER: ${POSTGRES_USERNAME}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: TaskTide
+    # Loopback-only: scripts/endToEnd.go verifies DB state directly via
+    # POSTGRES_DBSTRING (localhost:55432) and host psql debugging benefits
+    # from it; nothing else talks to postgres across the container network.
+    ports:
+      - "127.0.0.1:55432:5432"
     volumes:
       - TaskTide:/var/lib/postgresql/data
     healthcheck:
@@ -14,11 +19,15 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio
+    image: docker.io/minio/minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    # Loopback-only for object inspection/debugging by host tooling.
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
 
   migration:
     build:
@@ -53,6 +62,11 @@ services:
       - MINIO_USER=${MINIO_USER}
       - MINIO_PASSWORD=${MINIO_PASSWORD}
       - FILES_BUCKET_NAME=${FILES_BUCKET_NAME}
+    # Loopback-only, consumed by host-side test tooling: the E2E harness
+    # posts to http://localhost:${API_PORT}; browser traffic goes through
+    # the frontend's /api reverse proxy instead of this port.
+    ports:
+      - "127.0.0.1:${API_PORT}:${API_PORT}"
     depends_on:
       migration:
         condition: service_completed_successfully
@@ -74,6 +88,12 @@ services:
       - MINIO_USER=${MINIO_USER}
       - MINIO_PASSWORD=${MINIO_PASSWORD}
       - FILES_BUCKET_NAME=${FILES_BUCKET_NAME}
+    # Loopback-only host publishes for the test tooling shipped with this
+    # repo: scripts/endToEnd.go and the CLI talk gRPC to 50051 (see its
+    # comment) and the CLI/queue debugging uses the queue HTTP port.
+    ports:
+      - "127.0.0.1:${QUEUE_PORT}:${QUEUE_PORT}"
+      - "127.0.0.1:50051:50051"
     depends_on:
       migration:
         condition: service_completed_successfully
@@ -91,6 +111,7 @@ services:
       - QUEUE_PORT=${QUEUE_PORT}
       - WORKER_HOST=
       - NOOP_TIME=${NOOP_TIME}
+      - ENABLE_TEST_SIMULATORS=${ENABLE_TEST_SIMULATORS}
     depends_on:
       queue:
         condition: service_started

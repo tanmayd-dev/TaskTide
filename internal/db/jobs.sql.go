@@ -37,14 +37,28 @@ func (q *Queries) AddQueue(ctx context.Context, arg AddQueueParams) (Queue, erro
 }
 
 const claimPendingJobs = `-- name: ClaimPendingJobs :many
-SELECT j.id, j.queue_name, j.payload, j.max_retries, j.retry_count, j.delay, j.scheduled_at, j.priority, j.status, j.idempotency_key, j.task_execution_id, j.created_at, j.updated_at FROM jobs j JOIN queues q ON j.queue_name = q.name
+SELECT j.id, j.queue_name, j.payload, j.max_retries, j.retry_count, j.delay, j.scheduled_at, j.priority, j.status, j.idempotency_key, j.task_execution_id, j.created_at, j.updated_at FROM jobs j
+JOIN queues q ON j.queue_name = q.name
+LEFT JOIN task_execution te ON te.id = j.task_execution_id
+LEFT JOIN task_definition td ON td.id = te.task_base
 WHERE j.status = 'pending' AND j.scheduled_at <= NOW() AND q.paused = FALSE
+  AND (
+    -- Workflow jobs are matched by their task definition's task type;
+    -- standalone jobs are matched by their queue name.
+    (j.task_execution_id IS NOT NULL AND td.task_type = ANY($1::text[]))
+    OR (j.task_execution_id IS NULL AND j.queue_name = ANY($1::text[]))
+  )
 ORDER BY j.priority DESC, j.scheduled_at ASC
-FOR UPDATE OF j SKIP LOCKED LIMIT $1
+FOR UPDATE OF j SKIP LOCKED LIMIT $2
 `
 
-func (q *Queries) ClaimPendingJobs(ctx context.Context, limit int32) ([]Job, error) {
-	rows, err := q.db.Query(ctx, claimPendingJobs, limit)
+type ClaimPendingJobsParams struct {
+	Column1 []string
+	Limit   int32
+}
+
+func (q *Queries) ClaimPendingJobs(ctx context.Context, arg ClaimPendingJobsParams) ([]Job, error) {
+	rows, err := q.db.Query(ctx, claimPendingJobs, arg.Column1, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

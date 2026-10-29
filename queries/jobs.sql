@@ -71,10 +71,19 @@ WHERE j.status = 'pending'
 ORDER BY j.priority DESC, j.scheduled_at ASC;
 
 -- name: ClaimPendingJobs :many
-SELECT j.* FROM jobs j JOIN queues q ON j.queue_name = q.name
+SELECT j.* FROM jobs j
+JOIN queues q ON j.queue_name = q.name
+LEFT JOIN task_execution te ON te.id = j.task_execution_id
+LEFT JOIN task_definition td ON td.id = te.task_base
 WHERE j.status = 'pending' AND j.scheduled_at <= NOW() AND q.paused = FALSE
+  AND (
+    -- Workflow jobs are matched by their task definition's task type;
+    -- standalone jobs are matched by their queue name.
+    (j.task_execution_id IS NOT NULL AND td.task_type = ANY($1::text[]))
+    OR (j.task_execution_id IS NULL AND j.queue_name = ANY($1::text[]))
+  )
 ORDER BY j.priority DESC, j.scheduled_at ASC
-FOR UPDATE OF j SKIP LOCKED LIMIT $1;
+FOR UPDATE OF j SKIP LOCKED LIMIT $2;
 
 -- name: CreateExecution :one
 INSERT INTO executions (

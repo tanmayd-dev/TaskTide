@@ -83,6 +83,7 @@ services:
       - FILES_BUCKET_NAME=${FILES_BUCKET_NAME}
     ports:
       - "${QUEUE_PORT}:${QUEUE_PORT}"
+      - "50051:50051"
     depends_on:
       migration:
         condition: service_completed_successfully

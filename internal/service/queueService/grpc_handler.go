@@ -97,7 +97,10 @@ func (h *GrpcHandler) PollJobs(ctx context.Context, req *pb.PollRequest) (*pb.Po
 	}()
 
 	qtx := db.New(tx)
-	pendingJobs, err := qtx.ClaimPendingJobs(ctx, limit)
+	pendingJobs, err := qtx.ClaimPendingJobs(ctx, db.ClaimPendingJobsParams{
+		Column1: req.Capabilities,
+		Limit:   limit,
+	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to claim pending jobs: %v", err)
 	}

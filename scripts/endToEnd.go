@@ -473,14 +473,16 @@ func verifyDatabasePersistence(ctx context.Context, conn *pgx.Conn, workflowName
 	log.Printf("[DB OK] found workflow execution (ID: %s)\n", execID)
 
 	var completeCount int
-	err = conn.QueryRow(ctx, "SELECT count(*) FROM task_execution WHERE workflow_id = $1 AND task_completed = TRUE", execID).Scan(&completeCount)
+	// Terminal count = completed OR failed (Phase 3+ semantics: retry
+	// exhaustion marks the task failed, not completed).
+	err = conn.QueryRow(ctx, "SELECT count(*) FROM task_execution WHERE workflow_id = $1 AND (task_completed = TRUE OR task_failed = TRUE)", execID).Scan(&completeCount)
 	if err != nil {
 		log.Fatalf("Database validation failed: could not count task executions: %v", err)
 	}
 	if completeCount != expectedTaskCount {
-		log.Fatalf("Database validation failed: expected %d completed task executions, got %d", expectedTaskCount, completeCount)
+		log.Fatalf("Database validation failed: expected %d terminal task executions, got %d", expectedTaskCount, completeCount)
 	}
-	log.Printf("[DB OK] found %d completed task executions\n", completeCount)
+	log.Printf("[DB OK] found %d terminal task executions\n", completeCount)
 
 	rows, err := conn.Query(ctx, "SELECT id FROM task_execution WHERE workflow_id = $1", execID)
 	if err != nil {

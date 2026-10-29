@@ -224,26 +224,46 @@ func main() {
 	executionID5 := startWorkflow(baseURL, workflowID5)
 	log.Printf("Workflow execution started: %s\n", executionID5)
 
-	pollWorkflowStatus(baseURL, executionID5)
-	log.Println("Workflow execution completed (failed tasks marked completed after retry exhaustion).")
-
-	// Verify DB Persistence and 3 attempts
-	verifyDatabasePersistence(ctx, conn, "PermanentFailureWorkflow", 1)
-
+	// Phase 3 semantics: on retry exhaustion the job is dead-lettered and the
+	// workflow task execution is marked FAILED (task_failed = TRUE) instead of
+	// being completed. Poll the database until that terminal state is visible.
 	var teID5 string
 	err = conn.QueryRow(ctx, "SELECT id FROM task_execution WHERE workflow_id = $1 AND task_base = $2", executionID5, permanentTask).Scan(&teID5)
 	if err != nil {
 		log.Fatalf("Database validation failed: could not find task execution for %s: %v", permanentTask, err)
 	}
-	var attemptCount5 int
-	err = conn.QueryRow(ctx, "SELECT count(*) FROM task_attempt WHERE task_execution_base = $1", teID5).Scan(&attemptCount5)
-	if err != nil {
-		log.Fatalf("Database validation failed: could not count task attempts for permanent task: %v", err)
+
+	deadline5 := time.Now().Add(60 * time.Second)
+	for {
+		var teFailed bool
+		err = conn.QueryRow(ctx, "SELECT task_failed FROM task_execution WHERE id = $1", teID5).Scan(&teFailed)
+		if err != nil {
+			log.Fatalf("Database validation failed: could not read task_failed for task execution: %v", err)
+		}
+		var attemptCount5 int
+		err = conn.QueryRow(ctx, "SELECT count(*) FROM task_attempt WHERE task_execution_base = $1", teID5).Scan(&attemptCount5)
+		if err != nil {
+			log.Fatalf("Database validation failed: could not count task attempts for permanent task: %v", err)
+		}
+		var jobDeadLettered bool
+		err = conn.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM jobs WHERE task_execution_id = $1 AND status = 'dead_letter')", teID5).Scan(&jobDeadLettered)
+		if err != nil {
+			log.Fatalf("Database validation failed: could not check job status for permanent task: %v", err)
+		}
+
+		if teFailed && attemptCount5 >= 3 && jobDeadLettered {
+			log.Printf("[DB OK] permanent task terminal state reached: %d attempts, task_failed=TRUE, job dead_lettered\n", attemptCount5)
+			break
+		}
+		if time.Now().After(deadline5) {
+			log.Fatalf("Database validation failed: permanent task never reached terminal state within 60s (attempts=%d teFailed=%t deadLetter=%t)", attemptCount5, teFailed, jobDeadLettered)
+		}
+		time.Sleep(2 * time.Second)
 	}
-	if attemptCount5 != 3 {
-		log.Fatalf("Database validation failed: expected exactly 3 attempts, got %d", attemptCount5)
-	}
-	log.Printf("[DB OK] found exactly %d task attempts for permanent task (all 3 failed)\n", attemptCount5)
+	log.Println("Workflow execution terminal state verified (task marked failed after retry exhaustion).")
+
+	// Verify DB Persistence
+	verifyDatabasePersistence(ctx, conn, "PermanentFailureWorkflow", 1)
 	log.Println("=== Test Case 5 Passed ===")
 
 	log.Println("\nAll Test Cases executed and verified successfully!")

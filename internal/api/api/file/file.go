@@ -33,7 +33,11 @@ func addFile(queries *db.Queries, ctx context.Context, minioClient *minio.Client
 		}
 		defer file.Close()
 
-		minioFile, err := repositories.UploadFile(queries, ctx, minioClient, "files", header.Header.Get("ContentType"), file, header.Filename, header.Size)
+		bucketName := os.Getenv("FILES_BUCKET_NAME")
+		if bucketName == "" {
+			bucketName = "files"
+		}
+		minioFile, err := repositories.UploadFile(queries, ctx, minioClient, bucketName, header.Header.Get("ContentType"), file, header.Filename, header.Size)
 		if err != nil {
 			log.Printf("%v\n", err.Error())
 			http.Error(w, "Could not create file", http.StatusBadRequest)

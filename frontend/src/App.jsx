@@ -55,6 +55,11 @@ function Workspace() {
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [menuScreenPos, setMenuScreenPos] = useState({ x: 0, y: 0 });
 
+  // Canvas dirtiness: true when the canvas diverged from the saved backend
+  // workflow (file uploads, node/edge edits). Run re-saves when set, so
+  // post-save file attachments reach task_input_file before execution.
+  const canvasDirtyRef = useRef(false);
+
   // 1. Initial Load: Fetch workflow definitions
   const fetchWorkflows = async () => {
     try {
@@ -119,6 +124,7 @@ function Workspace() {
         return node;
       })
     );
+    canvasDirtyRef.current = true;
     setStatusText('File uploaded successfully');
     setStatusType('success');
   }, [setNodes]);
@@ -159,13 +165,15 @@ function Workspace() {
       }
     };
     setNodes((nds) => nds.concat(newNode));
+    canvasDirtyRef.current = true;
     return id;
   }, [setNodes, onUploadStart, onUploadSuccess, onUploadError]);
 
   // Connect edges
   const onConnect = useCallback(
-    (params) =>
-      setEdges((eds) =>
+    (params) => {
+      canvasDirtyRef.current = true;
+      return setEdges((eds) =>
         addEdge(
           {
             ...params,
@@ -177,7 +185,8 @@ function Workspace() {
           },
           eds
         )
-      ),
+      );
+    },
     [setEdges, isDark]
   );
 
@@ -240,6 +249,7 @@ function Workspace() {
       event.preventDefault();
       event.stopPropagation();
       setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+      canvasDirtyRef.current = true;
       setStatusText('Connection deleted');
       setStatusType('info');
     },
@@ -329,6 +339,7 @@ function Workspace() {
 
       setNodes(newNodes);
       setEdges(newEdges);
+      canvasDirtyRef.current = false;
       setStatusText('Workflow loaded');
       setStatusType('success');
     } catch (err) {
@@ -368,6 +379,7 @@ function Workspace() {
 
     setStatusText(`Created workflow draft: "${name.trim()}". Save to persist.`);
     setStatusType('success');
+    canvasDirtyRef.current = false;
   };
 
   // Topological sorting helper
@@ -481,6 +493,7 @@ function Workspace() {
       setSelectedWorkflowId(workflowId);
       await fetchWorkflows();
 
+      canvasDirtyRef.current = false;
       setStatusText('Workflow saved successfully!');
       setStatusType('success');
       return workflowId;
@@ -551,8 +564,10 @@ function Workspace() {
     try {
       let workflowId = selectedWorkflowId;
 
-      // Unsaved canvas: save first (prompts for a name), then run.
-      if (!workflowId) {
+      // Save first when the canvas is unsaved OR has drifted from the saved
+      // definition (e.g. a file attached after the last save) so the run
+      // always executes what is currently on the canvas.
+      if (!workflowId || canvasDirtyRef.current) {
         workflowId = await handleSaveWorkflow();
         if (!workflowId) return;
       }
@@ -581,6 +596,7 @@ function Workspace() {
     if (selectedNodeIds.length > 0) {
       setNodes((nds) => nds.filter((node) => !node.selected));
       setEdges((eds) => eds.filter((edge) => !edge.selected && !selectedNodeIds.includes(edge.source) && !selectedNodeIds.includes(edge.target)));
+      canvasDirtyRef.current = true;
       setStatusText('Selected node(s) deleted');
       setStatusType('info');
       return;
@@ -589,6 +605,7 @@ function Workspace() {
     const selectedEdges = edges.filter(e => e.selected);
     if (selectedEdges.length > 0) {
       setEdges((eds) => eds.filter((edge) => !edge.selected));
+      canvasDirtyRef.current = true;
       setStatusText('Selected connection(s) deleted');
       setStatusType('info');
       return;
@@ -604,6 +621,7 @@ function Workspace() {
       setEdges([]);
       setSelectedWorkflowId(null);
       setCurrentWorkflowName('');
+      canvasDirtyRef.current = false;
       setStatusText('Workspace cleared');
       setStatusType('info');
     }

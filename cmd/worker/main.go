@@ -76,7 +76,11 @@ func main() {
 	}
 
 	concurrencyLimit := 5
-	capabilities := []string{"NOOP", "OUTPUT", "doc.read", "csv.read"}
+	capabilities := []string{
+		"NOOP", "OUTPUT",
+		"doc.read", "doc.check_sensitive",
+		"csv.read", "csv.validate", "csv.filter", "csv.aggregate",
+	}
 
 	// pollCtx controls the polling/acquisition loop; workerCtx covers the
 	// worker lifetime (connection, registration, heartbeat and lease

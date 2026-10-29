@@ -50,8 +50,16 @@ func ExecuteJob(ctx context.Context, client pb.TaskTideServiceClient, workerID s
 		taskError = tasks.Output(&taskExec)
 	case models.TaskDocRead:
 		taskError = tasks.DocRead(&taskExec)
+	case models.TaskDocCheckSensitive:
+		taskError = tasks.DocCheckSensitive(&taskExec)
 	case models.TaskCSVRead:
 		taskError = tasks.CSVRead(&taskExec)
+	case models.TaskCSVValidate:
+		taskError = tasks.CSVValidate(&taskExec)
+	case models.TaskCSVFilter:
+		taskError = tasks.CSVFilter(&taskExec)
+	case models.TaskCSVAggregate:
+		taskError = tasks.CSVAggregate(&taskExec)
 	default:
 		taskError = errors.New("task type not implemented")
 		log.Printf("ExecuteJob: not implemented for %v\n", payloadStruct.Task.TaskType)

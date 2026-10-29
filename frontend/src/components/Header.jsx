@@ -56,7 +56,7 @@ export const Header = ({
             id="workflow-dropdown"
             value={selectedWorkflowId || ''}
             onChange={(e) => onWorkflowSelect(e.target.value)}
-            className="h-8 px-2 text-xs bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 focus:outline-none focus:border-slate-400 dark:focus:border-zinc-600 text-slate-800 dark:text-slate-100 cursor-pointer"
+            className="h-9 px-2.5 text-xs bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-md focus:outline-none focus:border-slate-400 dark:focus:border-zinc-600 text-slate-800 dark:text-slate-100 cursor-pointer"
           >
             <option value="">-- Create or Select --</option>
             {workflows.map((w) => (
@@ -70,7 +70,7 @@ export const Header = ({
         <button
           type="button"
           onClick={onNew}
-          className="h-8 px-3 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-700 dark:text-slate-200 font-medium flex items-center gap-1.5 cursor-pointer transition-colors border border-slate-200 dark:border-zinc-800"
+          className="h-9 px-3.5 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-700 dark:text-slate-200 font-medium flex items-center gap-2 cursor-pointer transition-colors border border-slate-200 dark:border-zinc-800 rounded-md"
         >
           <Plus className="w-3.5 h-3.5" />
           New
@@ -80,7 +80,7 @@ export const Header = ({
           type="button"
           onClick={onSave}
           disabled={isSaveDisabled}
-          className={`h-8 px-3 text-xs font-medium flex items-center gap-1.5 border transition-colors cursor-pointer ${
+          className={`h-9 px-3.5 text-xs font-medium flex items-center gap-2 border rounded-md transition-colors ${
             isSaveDisabled
               ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-zinc-800 text-slate-400 dark:text-zinc-600'
               : 'bg-white hover:bg-slate-50 border-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-800 dark:text-slate-200 dark:border-zinc-800'
@@ -94,7 +94,7 @@ export const Header = ({
           type="button"
           onClick={onRun}
           disabled={isRunDisabled}
-          className={`h-8 px-4 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm ${
+          className={`h-9 px-4 text-xs font-semibold flex items-center gap-2 rounded-md shadow-sm transition-colors ${
             isRunDisabled
               ? 'bg-slate-100 dark:bg-zinc-900 text-slate-400 dark:text-zinc-600 border border-slate-200 dark:border-zinc-800 opacity-40 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-600'
@@ -107,7 +107,7 @@ export const Header = ({
         <button
           type="button"
           onClick={onDeleteSelected}
-          className="h-8 px-3 text-xs bg-red-600 hover:bg-red-700 text-white font-medium flex items-center gap-1.5 cursor-pointer transition-colors border border-red-600"
+          className="h-9 px-3.5 text-xs text-red-600 hover:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 font-medium flex items-center gap-2 cursor-pointer transition-colors border border-red-500/40 dark:border-red-500/30 rounded-md"
           title="Delete selected nodes or edges"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -117,7 +117,7 @@ export const Header = ({
         <button
           type="button"
           onClick={onClearAll}
-          className="h-8 px-3 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-700 dark:text-slate-200 font-medium flex items-center gap-1.5 cursor-pointer transition-colors border border-slate-200 dark:border-zinc-800"
+          className="h-9 px-3.5 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-700 dark:text-slate-200 font-medium flex items-center gap-2 cursor-pointer transition-colors border border-slate-200 dark:border-zinc-800 rounded-md"
           title="Clear the entire workspace canvas"
         >
           <Trash2 className="w-3.5 h-3.5 text-red-500" />

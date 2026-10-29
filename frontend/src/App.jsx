@@ -404,12 +404,26 @@ function Workspace() {
   };
 
   // 4. Save Workflow Action
+  // Returns the saved workflow ID (or null if cancelled/failed) so callers
+  // (e.g. handleRunWorkflow's save-then-run) can chain off it.
   const handleSaveWorkflow = async () => {
-    if (!currentWorkflowName) return;
+    if (nodes.length === 0) return null;
 
     try {
       setStatusText('Saving workflow...');
       setStatusType('running');
+
+      let workflowName = currentWorkflowName;
+      if (!workflowName) {
+        const name = prompt('Enter a name for this workflow:', 'My Custom Workflow');
+        if (!name || !name.trim()) {
+          setStatusText('Save cancelled — workflow name required');
+          setStatusType('error');
+          return null;
+        }
+        workflowName = name.trim();
+        setCurrentWorkflowName(workflowName);
+      }
 
       // Sort nodes topologically
       let sortedNodes;
@@ -418,11 +432,11 @@ function Workspace() {
       } catch (err) {
         setStatusText(err.message);
         setStatusType('error');
-        return;
+        return null;
       }
 
       // Create workflow definition
-      const workflow = await TaskTideAPI.createWorkflow(currentWorkflowName);
+      const workflow = await TaskTideAPI.createWorkflow(workflowName);
       const workflowId = workflow.id;
 
       const clientToBackendMap = {};
@@ -448,15 +462,33 @@ function Workspace() {
         clientToBackendMap[node.id] = createdTask.id;
       }
 
+      // Adopt backend task IDs on the canvas so execution monitors and
+      // edges keep resolving node labels after the save.
+      setNodes((nds) =>
+        nds.map((node) => {
+          const backendId = clientToBackendMap[node.id];
+          return backendId ? { ...node, id: backendId } : node;
+        })
+      );
+      setEdges((eds) =>
+        eds.map((edge) => ({
+          ...edge,
+          source: clientToBackendMap[edge.source] || edge.source,
+          target: clientToBackendMap[edge.target] || edge.target
+        }))
+      );
+
       setSelectedWorkflowId(workflowId);
       await fetchWorkflows();
 
       setStatusText('Workflow saved successfully!');
       setStatusType('success');
+      return workflowId;
     } catch (err) {
       console.error(err);
       setStatusText(`Save failed: ${err.message}`);
       setStatusType('error');
+      return null;
     }
   };
 
@@ -477,6 +509,8 @@ function Workspace() {
               let executionState = 'idle';
               if (exec.task_completed) {
                 executionState = 'completed';
+              } else if (exec.task_failed) {
+                executionState = 'failed';
               } else if (exec.task_assigned) {
                 executionState = 'running';
               }
@@ -512,13 +546,21 @@ function Workspace() {
 
   // 5. Run Execution Action
   const handleRunWorkflow = async () => {
-    if (!selectedWorkflowId) return;
+    if (nodes.length === 0) return;
 
     try {
+      let workflowId = selectedWorkflowId;
+
+      // Unsaved canvas: save first (prompts for a name), then run.
+      if (!workflowId) {
+        workflowId = await handleSaveWorkflow();
+        if (!workflowId) return;
+      }
+
       setStatusText('Triggering workflow run...');
       setStatusType('running');
 
-      const run = await TaskTideAPI.startWorkflow(selectedWorkflowId);
+      const run = await TaskTideAPI.startWorkflow(workflowId);
       const execId = run.id;
 
       setExecutionId(execId);
@@ -586,8 +628,8 @@ function Workspace() {
         onRun={handleRunWorkflow}
         onDeleteSelected={handleDeleteSelected}
         onClearAll={handleClearAll}
-        isSaveDisabled={!currentWorkflowName || nodes.length === 0}
-        isRunDisabled={!selectedWorkflowId}
+        isSaveDisabled={nodes.length === 0}
+        isRunDisabled={nodes.length === 0}
         isDark={isDark}
         onToggleTheme={handleToggleTheme}
         statusText={statusText}
@@ -670,10 +712,13 @@ function Workspace() {
           status={
             taskExecutions.length > 0 && taskExecutions.every((t) => t.task_completed)
               ? 'completed'
-              : 'running'
+              : taskExecutions.some((t) => t.task_failed)
+                ? 'failed'
+                : 'running'
           }
           taskExecutions={taskExecutions}
           nodes={nodes}
+          edges={edges}
         />
       </div>
     </div>
